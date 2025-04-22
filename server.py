@@ -4,6 +4,7 @@ import os
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any
+import subprocess
 
 app = FastAPI(
     title="RuleMaster API",
@@ -55,6 +56,24 @@ async def generate_rule(request: Dict[str, Any]):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Startup event to launch Streamlit UI
+def start_streamlit():
+    """
+    Launch the Streamlit chat interface in a separate process.
+    """
+    script_path = os.path.join(os.path.dirname(__file__), "streamlit_app.py")
+    if os.path.exists(script_path):
+        subprocess.Popen(
+            ["streamlit", "run", script_path, "--server.port", "8501"],
+            cwd=os.path.dirname(__file__),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+@app.on_event("startup")
+def on_startup():
+    start_streamlit()
 
 
 if __name__ == "__main__":

@@ -15,8 +15,17 @@ user_input = st.chat_input("Type your message here...")
 if user_input:
     # Store user message
     st.session_state.messages.append({'role': 'user', 'content': user_input})
-    # Process through our assistant logic
-    result = handle_user_message(user_input)
+
+    # ── DEBUG WRAP ────────────────────────────────────────────────────────
+    try:
+        result = handle_user_message(user_input)
+    except Exception as e:
+        st.error(f"🔴 Error in handle_user_message: {e}")
+        raise
+    # Show the raw result for inspection
+    st.write("🔧 Debug result:", result)
+    # ─────────────────────────────────────────────────────────────────────
+
     assistant_text = result['assistant']
     # Store assistant reply
     st.session_state.messages.append({'role': 'assistant', 'content': assistant_text})

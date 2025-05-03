@@ -71,9 +71,9 @@ def start_streamlit():
             stderr=subprocess.DEVNULL,
         )
 
-@app.on_event("startup")
-def on_startup():
-    start_streamlit()
+# @app.on_event("startup")
+# def on_startup():
+#     start_streamlit()
 
 
 if __name__ == "__main__":

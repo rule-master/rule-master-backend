@@ -62,7 +62,8 @@ def start_streamlit():
     """
     Launch the Streamlit chat interface in a separate process.
     """
-    script_path = os.path.join(os.path.dirname(__file__), "streamlit_app.py")
+    #script_path = os.path.join(os.path.dirname(__file__), "streamlit_app.py")
+    script_path = os.path.join(os.path.dirname(__file__), "RuleAgent_app.py")
     if os.path.exists(script_path):
         subprocess.Popen(
             ["streamlit", "run", script_path, "--server.port", "8501"],
@@ -70,10 +71,11 @@ def start_streamlit():
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
+        
 
-# @app.on_event("startup")
-# def on_startup():
-#     start_streamlit()
+@app.on_event("startup")
+def on_startup():
+    start_streamlit()
 
 
 if __name__ == "__main__":

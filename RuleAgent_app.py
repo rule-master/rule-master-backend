@@ -1,6 +1,6 @@
 import os
 import streamlit as st
-import DroolsLLMAgent
+from DroolsLLMAgent import DroolsLLMAgent
 
 # Initialize the Drools LLM Agent in session state
 if 'agent' not in st.session_state:

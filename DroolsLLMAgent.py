@@ -1,6 +1,6 @@
 import json
-import openai
 from typing import List, Dict, Any
+from openai import OpenAI
 
 # Populate these lists with Java class names from your knowledge base
 TARGET_CLASSES: List[str] = ["EmployeeRecommendation"]
@@ -75,11 +75,10 @@ FUNCTION_DEFINITIONS = [
 
 class DroolsLLMAgent:
     def __init__(self, api_key: str, model: str = "gpt-4o-mini"):
-        openai.api_key = api_key
+        self.client = OpenAI(api_key=api_key)
         self.model = model
-        self.messages: List[Dict[str, Any]] = []
-
-        # System prompt with detailed JSON structures and instructions
+        self.messages: List[Dict[str, Any]] = []  # system prompt should be prepended externally
+        
         system_content = f"""
 You are a friendly Drools Rule Assistant. Follow these rules based on the user's intent:
 
@@ -163,19 +162,20 @@ Ask one question at a time in clear business language. Use OpenAI's function_cal
         # Append user message
         self.messages.append({"role": "user", "content": user_message})
 
-        # Call OpenAI with function definitions
-        response = openai.ChatCompletion.create(
+        # Call OpenAI function-calling via new client API
+        response = self.client.chat.completions.create(
             model=self.model,
             messages=self.messages,
             functions=FUNCTION_DEFINITIONS,
             function_call="auto"
         )
+        # Extract the first choice's message
         message = response.choices[0].message
 
-        # If model is calling a function, handle it
-        if message.get("function_call"):
-            func_name = message["function_call"]["name"]
-            args = json.loads(message["function_call"]["arguments"])
+        # Handle function calls
+        if hasattr(message, 'function_call') and message.function_call:
+            func_name = message.function_call.name
+            args = json.loads(message.function_call.arguments)
             try:
                 function_response = globals()[func_name](**args)
                 status = function_response.get("status", "success")
@@ -183,14 +183,14 @@ Ask one question at a time in clear business language. Use OpenAI's function_cal
                 function_response = {"status": "error", "error": str(e)}
                 status = "error"
 
-            # Record function call and response
-            self.messages.append(message)
+            # Log function call and its result
+            self.messages.append({"role": "assistant", "content": None, "function_call": {"name": func_name, "arguments": message.function_call.arguments}})
             self.messages.append({"role": "function", "name": func_name, "content": json.dumps(function_response)})
 
-            # Generate confirmation or error message
+            # Send confirmation or error back to user
             if status == "success":
-                rule = function_response.get("rule_name", args.get("rule_name", ""))
-                reply = f"✅ {func_name} completed successfully for rule '{rule}'."
+                rule_name = function_response.get("rule_name", args.get("rule_name", ""))
+                reply = f"✅ {func_name} completed successfully for rule '{rule_name}'."
             else:
                 error_msg = function_response.get("error", "Unknown error")
                 reply = f"❌ An error occurred during {func_name}: {error_msg}."
@@ -198,26 +198,23 @@ Ask one question at a time in clear business language. Use OpenAI's function_cal
             self.messages.append({"role": "assistant", "content": reply})
             return reply
 
-        # Otherwise, return assistant's message
-        self.messages.append({"role": "assistant", "content": message.get("content", "")})
-        return message.get("content", "")
+        # Otherwise, return the assistant's message
+        reply = message.content or ""
+        self.messages.append({"role": "assistant", "content": reply})
+        return reply
 
 # Placeholder tool implementations
 
 def searchDroolsRules(rule_name: str = None, conditions: List[str] = None, actions: List[str] = None) -> List[Dict[str, Any]]:
-    # Implement actual search logic; must accept at least one non-null parameter
     return [{"rule_name": "SampleRule", "conditions": ["age > 18"], "actions": ["approve"]}]
 
 def generateDroolsRuleFromJson(**payload: Any) -> Dict[str, Any]:
-    # Implement actual generation logic
     return {"status": "success", "rule_name": payload.get("rule_name")}
 
 def editDroolsRule(**payload: Any) -> Dict[str, Any]:
-    # Implement actual edit logic
     return {"status": "success", "rule_name": payload.get("rule_name")}
 
 def deleteDroolsRule(rule_name: str) -> Dict[str, Any]:
-    # Implement actual deletion logic
     return {"status": "deleted", "rule_name": rule_name}
 
 # Example usage:

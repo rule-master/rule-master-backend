@@ -1,0 +1,17 @@
+package com.myspace.restopsrecomms;
+
+import com.myspace.restopsrecomms.RestaurantData;
+import com.myspace.restopsrecomms.EmployeeRecommendation;
+
+rule "recommend_additional_staff_for_weekday_mornings"
+    salience 70
+    when
+        $restaurant : RestaurantData(
+            calculationDateTime matches "[0-9\\-:T]*T(08|09|10):[0-9]{2}.*"
+        )
+        $recommendation : EmployeeRecommendation()
+    then
+        $recommendation.addRestaurantEmployees(1);
+        $recommendation.addRuleExecuted(drools.getRule().getName());
+        update($recommendation);
+end

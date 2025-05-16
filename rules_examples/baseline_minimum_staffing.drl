@@ -1,0 +1,15 @@
+package com.myspace.restopsrecomms;
+
+import com.myspace.restopsrecomms.RestaurantData;
+import com.myspace.restopsrecomms.EmployeeRecommendation;
+
+rule "baseline_minimum_staffing"
+    salience 10
+    when
+        $restaurant : RestaurantData()
+        $recommendation : EmployeeRecommendation()
+    then
+        $recommendation.addRestaurantEmployees(1);
+        $recommendation.addRuleExecuted(drools.getRule().getName());
+        update($recommendation);
+end

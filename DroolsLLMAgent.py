@@ -186,15 +186,13 @@ Ask one question at a time in clear business language. Use OpenAI's function_cal
             # Log function call and its result
             self.messages.append({"role": "assistant", "content": None, "function_call": {"name": func_name, "arguments": message.function_call.arguments}})
             self.messages.append({"role": "function", "name": func_name, "content": json.dumps(function_response)})
+            
 
-            # Send confirmation or error back to user
-            if status == "success":
-                rule_name = function_response.get("rule_name", args.get("rule_name", ""))
-                reply = f"✅ {func_name} completed successfully for rule '{rule_name}'."
-            else:
-                error_msg = function_response.get("error", "Unknown error")
-                reply = f"❌ An error occurred during {func_name}: {error_msg}."
-
+            followup = self.client.chat.completions.create(
+                model=self.model,
+                messages=self.messages
+            )
+            reply = followup.choices[0].message.content or ""
             self.messages.append({"role": "assistant", "content": reply})
             return reply
 
@@ -206,7 +204,20 @@ Ask one question at a time in clear business language. Use OpenAI's function_cal
 # Placeholder tool implementations
 
 def searchDroolsRules(rule_name: str = None, conditions: List[str] = None, actions: List[str] = None) -> List[Dict[str, Any]]:
-    return [{"rule_name": "SampleRule", "conditions": ["age > 18"], "actions": ["approve"]}]
+    """
+    Stubbed search: returns a dict with status and a list of matching rules.
+    """
+    # DEBUG: print incoming search criteria
+    print("[DEBUG] searchDroolsRules called with:")
+    print(f"  rule_name: {rule_name}")
+    print(f"  conditions: {conditions}")
+    print(f"  actions: {actions}")
+    # Sample data
+    sample_rules = [
+        {"rule_name": "SampleRule1", "conditions": ["age > 18"], "actions": ["approve"]},
+        {"rule_name": "SampleRule2", "conditions": ["sales < 10000", "restaurant size is large"], "actions": ["notify manager"]}
+    ]
+    return {"status": "success", "rules": sample_rules}
 
 def generateDroolsRuleFromJson(**payload: Any) -> Dict[str, Any]:
     return {"status": "success", "rule_name": payload.get("rule_name")}

@@ -24,9 +24,17 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-4. Create a `.env` file in the project root and add your Groq API key:
+4. Create a `.env` file in the project root and add your env variables:
 ```
-GROQ_API_KEY=your_api_key_here
+GROQ_API_KEY=
+DROOLS_URL=
+DROOLS_USER=
+DROOLS_PASS=
+OPENAI_API_KEY=
+QDRANT_API_KEY=
+QDRANT_URL=
+RULES_DIR=
+JAVA_DIR=
 ```
 
 ## Running the Server

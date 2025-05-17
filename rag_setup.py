@@ -13,7 +13,7 @@ import glob
 import json
 from openai import OpenAI
 from qdrant_client import QdrantClient
-import numpy as np
+from qdrant_client.models import Filter, FieldCondition, MatchValue, PayloadSchemaType
 from dotenv import load_dotenv
 import uuid
 
@@ -55,6 +55,15 @@ if not qdrant.collection_exists(collection_name=COLLECTION_NAME):
     print(f"Created collection '{COLLECTION_NAME}'")
 else:
     print(f"Collection '{COLLECTION_NAME}' already exists")(f"Collection '{COLLECTION_NAME}' already exists")
+    
+# Now create payload indexes (before ingest)
+for field in ["source","format","type","target_class","title","rule_type"]:
+    qdrant.create_payload_index(
+        collection_name=COLLECTION_NAME,
+        field_name=field,
+        field_schema=PayloadSchemaType.KEYWORD,
+    )
+    print(f"Indexed '{field}'")
 
 # --------------- Helper Functions ---------------
 
@@ -186,17 +195,34 @@ sample_payload = {
     "input_class": "RestaurantData",
     "rule_name": "TestRule",
     "salience": 1,
-    "conditions": [{"condition": "sales > 5000", "actions": ["set employees to 10"]}]
+    "conditions": [{"condition": "sales > 5000", "actions": ["set employees to 10"]},
+                   {"condition": "sales > 8000", "actions": ["set employees to 15"]},
+                   {"condition": "sales > 12000", "actions": ["set employees to 20"]}]
 }
 query_text = json.dumps(sample_payload)
 print(f"Embedding sample JSON payload for retrieval...")
 query_vec = embed_text(query_text)
 
+# Build a boolean “must” filter on your metadata fields
+metadata_filter = Filter(
+    must=[
+        FieldCondition(
+            key="rule_type",
+            match=MatchValue(value="complex")
+        ),
+        FieldCondition(
+            key="format",
+            match=MatchValue(value="gdst")
+        )
+    ]
+)
+
 # Retrieve top K
 hits = qdrant.search(
     collection_name=COLLECTION_NAME,
     query_vector=query_vec,
-    limit=5
+    limit=5,
+    query_filter=metadata_filter
 )
 print("Top 5 RAG hits:")
 for hit in hits:

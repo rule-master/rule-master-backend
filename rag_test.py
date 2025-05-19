@@ -72,9 +72,9 @@ sample_payload = {
     "input_class": "RestaurantData",
     "rule_name": "TestRule",
     "salience": 1,
-    "conditions": [{"condition": "sales > 5000", "actions": ["set employees to 10"]},
-                   {"condition": "sales > 8000", "actions": ["set employees to 15"]},
-                   {"condition": "sales > 12000", "actions": ["set employees to 20"]}]
+    "conditions": [{"condition": "expected sales > 5000", "actions": ["set employees to 10"]},
+                   {"condition": "expected sales > 8000", "actions": ["set employees to 15"]},
+                   {"condition": "expected sales > 12000", "actions": ["set employees to 20"]}]
 }
 query_text = json.dumps(sample_payload)
 print(f"Embedding sample JSON payload for retrieval...")

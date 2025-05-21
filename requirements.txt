@@ -4,3 +4,4 @@ python-dotenv
 openai
 qdrant-client
 streamlit
+psutil

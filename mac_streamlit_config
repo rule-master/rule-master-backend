@@ -1,0 +1,59 @@
+# Startup event to launch Streamlit UI
+def start_streamlit():
+    """
+    Launch the Streamlit chat interface in a separate process.
+    """
+    try:
+        script_path = os.path.join(os.path.dirname(__file__), "RuleAgent_app.py")
+        print(f"Starting Streamlit... Script path: {script_path}")
+        print(f"Script exists: {os.path.exists(script_path)}")
+        
+        if not os.path.exists(script_path):
+            print(f"Error: Could not find script at {script_path}")
+            return
+            
+        # Get the path to the Python executable in the current environment
+        python_exe = sys.executable
+        
+        # Set environment variables to disable telemetry and interactive prompts
+        env = os.environ.copy()
+        env["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
+        
+        # Try to run streamlit with full error output using the current Python interpreter
+        process = subprocess.Popen(
+            [
+                python_exe, 
+                "-m", 
+                "streamlit", 
+                "run",
+                script_path,
+                "--server.port", "8501",
+                "--server.headless", "true",  # Run in headless mode
+                "--browser.gatherUsageStats", "false"  # Disable telemetry
+            ],
+            cwd=os.path.dirname(__file__),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            shell=True,  # This helps with Windows path issues
+            creationflags=subprocess.CREATE_NO_WINDOW,  # Prevents command window popup on Windows
+            env=env  # Pass the modified environment
+        )
+        
+        # Check immediate startup errors
+        try:
+            stdout, stderr = process.communicate(timeout=5)
+            if process.returncode is not None:  # Process ended within 5 seconds (error)
+                print(f"Streamlit failed to start. Error output:")
+                print(f"STDOUT: {stdout}")
+                print(f"STDERR: {stderr}")
+            else:
+                print("Streamlit process started successfully")
+        except subprocess.TimeoutExpired:
+            # This is actually good - means the process is still running
+            print("Streamlit started and is running")
+            process.stdout.close()
+            process.stderr.close()
+            
+    except Exception as e:
+        print(f"Error starting Streamlit: {str(e)}")

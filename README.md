@@ -37,7 +37,9 @@ RULES_DIR=
 JAVA_DIR=
 ```
 
-## Running the Server
+## Running the Application
+
+### Starting the Server
 
 1. Make sure your virtual environment is activated
 
@@ -46,9 +48,18 @@ JAVA_DIR=
 python server.py
 ```
 
-3. The server will start at `http://localhost:8000`
+3. The FastAPI server will start at `http://localhost:8000`
 
-4. Test it with this example:
+4. The Streamlit UI will automatically launch at `http://localhost:8501`
+   - You can access the user interface by opening your browser and navigating to:
+   ```
+   http://localhost:8501
+   ```
+   - If you see any port conflicts, the server will attempt to resolve them automatically
+
+### Testing the API Directly
+
+You can test the API endpoint directly using the following:
 
 Endpoint: `http://localhost:8000/generate-rule`
 
@@ -76,3 +87,18 @@ curl -X POST "http://localhost:8000/generate-rule" \
     "output_file": "restaurant_staffing.dmn"
 }'
 ```
+
+## Accessing the Application
+
+When you run `server.py`, two services will start:
+
+1. **FastAPI Backend Server**
+   - URL: `http://localhost:8000`
+   - Handles the API endpoints
+   - Provides the rule generation service
+
+2. **Streamlit User Interface**
+   - URL: `http://localhost:8501`
+   - Provides a user-friendly web interface
+   - Automatically launches when you start the server
+   - Use this for interactive rule creation and testing

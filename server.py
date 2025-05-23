@@ -1,27 +1,7 @@
-from fastapi import FastAPI, HTTPException
-from rule_agent import export_rule_to_xml
 import os
-from fastapi.responses import FileResponse
-from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict, Any
 import subprocess
 import sys
 import socket
-
-app = FastAPI(
-    title="RuleMaster API",
-    description="API for generating DMN rules from natural language",
-    version="1.0.0",
-)
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
-    allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
-)
 
 def kill_port(port: int) -> bool:
     """Kill any process using the specified port."""
@@ -51,12 +31,22 @@ def start_streamlit():
             return
 
         port = 8501
-        if not is_port_available(port):
-            print(f"Port {port} is in use. Attempting to free it...")
-            kill_port(port)
+        max_retries = 3
+        retry_count = 0
+        
+        while retry_count < max_retries:
             if not is_port_available(port):
-                print(f"Could not free port {port}")
-                return
+                print(f"Port {port} is in use. Attempting to free it...")
+                kill_port(port)
+                if not is_port_available(port):
+                    print(f"Could not free port {port}, trying again...")
+                    retry_count += 1
+                    continue
+            break
+            
+        if retry_count == max_retries:
+            print(f"Failed to free port {port} after {max_retries} attempts")
+            return
 
         print(f"\n{'='*50}")
         print(f"Starting Streamlit server...")
@@ -73,6 +63,7 @@ def start_streamlit():
                 "run",
                 script_path,
                 "--server.port", str(port),
+                "--server.address", "localhost",
                 "--server.headless", "true",
                 "--browser.gatherUsageStats", "false"
             ],
@@ -81,62 +72,34 @@ def start_streamlit():
             creationflags=subprocess.CREATE_NO_WINDOW
         )
         
-        # Brief check for immediate startup errors
+        # Wait a bit longer for startup and check process status
         try:
-            process.wait(timeout=1)
+            # Wait up to 5 seconds to see if process dies immediately
+            process.wait(timeout=5)
             if process.returncode is not None:
-                print("\nStreamlit failed to start")
-            else:
-                print(f"\nStreamlit is running!")
-                print(f"Open your browser and navigate to: http://localhost:{port}")
+                print("\nStreamlit failed to start. Error output:")
+                error_output = process.stderr.read().decode()
+                print(error_output)
+                return
         except subprocess.TimeoutExpired:
+            # Process is still running after 5 seconds, which is good
             print(f"\nStreamlit is running successfully!")
             print(f"Open your browser and navigate to: http://localhost:{port}")
             print(f"{'='*50}")
             
     except Exception as e:
         print(f"Error starting Streamlit: {str(e)}")
-
-@app.post("/generate-rule")
-async def generate_rule(request: Dict[str, Any]):
-    """
-    Generate a DMN rule from natural language text.
-
-    Args:
-        request: Dictionary containing:
-            - rule_text: The natural language rule to convert to DMN
-            - output_file: The name of the output file (default: rule.dmn)
-
-    Returns:
-        The generated DMN file
-    """
-    try:
-        # Validate request
-        if "rule_text" not in request:
-            raise HTTPException(status_code=400, detail="rule_text is required")
-
-        rule_text = request["rule_text"]
-        output_file = request.get("output_file", "rule.dmn")
-
-        # Generate the rule and get the file path
-        file_path = export_rule_to_xml(rule_text, output_file)
-
-        # Check if file exists
-        if not os.path.exists(file_path):
-            raise HTTPException(status_code=500, detail="Failed to generate rule file")
-
-        # Return the file
-        return FileResponse(
-            path=file_path, filename=output_file, media_type="application/xml"
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.on_event("startup")
-def on_startup():
-    start_streamlit()
+        if 'process' in locals():
+            try:
+                process.kill()
+            except:
+                pass
 
 if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    start_streamlit()
+    # Keep the main process running
+    try:
+        while True:
+            input()
+    except KeyboardInterrupt:
+        print("\nShutting down...")

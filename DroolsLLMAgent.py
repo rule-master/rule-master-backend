@@ -1,9 +1,14 @@
 import json
 import os
 from typing import List, Dict, Any
+from dotenv import load_dotenv
 from openai import OpenAI
 from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchValue
+
+# Load environment variables
+print("Loading environment variables in DroolsLLMAgent.py...")
+load_dotenv()
 
 # Populate these lists with Java class names from your knowledge base
 TARGET_CLASSES: List[str] = ["EmployeeRecommendation"]
@@ -15,6 +20,12 @@ JAVA_DIR = os.getenv("JAVA_DIR")
 openai_key = os.getenv("OPENAI_API_KEY")
 qdrant_url = os.getenv("QDRANT_URL")
 qdrant_key = os.getenv("QDRANT_API_KEY")
+
+print("DroolsLLMAgent environment check:")
+print("OPENAI_API_KEY exists:", "Yes" if openai_key else "No")
+print("OPENAI_API_KEY length:", len(openai_key) if openai_key else 0)
+
+# Initialize clients
 oai = OpenAI(api_key=openai_key)
 qdrant = QdrantClient(url=qdrant_url, prefer_grpc=False, api_key=qdrant_key)
 
@@ -463,11 +474,11 @@ INSTRUCTIONS:
     - {{salience}} fill it from the salience in user's JSON.
     - {{input_class}} fill it from input_class in user's JSON.
     - $target The bound variable name for your action fact (usually $target mapping to {{target_class}}).
-    - {{operator}} The comparison operator (e.g. >=, ==, <), extracted from the user’s condition string.
+    - {{operator}} The comparison operator (e.g. >=, ==, <), extracted from the user's condition string.
     - $input The bound variable name representing an instance of {{input_class}} in the WHEN clause. e.g. $input : RestaurantData( getExpectedSales() >= … )
     - All your <ConditionCol52> entries under that <Pattern52> will apply against this $input.
     - For BRLConditionColumn / BRLActionVariableColumn, insert the DSL snippet into <text>.
-    - The exact DRL/DSL snippet for that condition, taken verbatim from the user’s JSON. e.g. if the JSON says "condition": "expected sales > 5000", you might transform that into <text>eval(RestaurantData.getExpectedSales() > 5000);</text>
+    - The exact DRL/DSL snippet for that condition, taken verbatim from the user's JSON. e.g. if the JSON says "condition": "expected sales > 5000", you might transform that into <text>eval(RestaurantData.getExpectedSales() > 5000);</text>
     - For Pattern52, split each structured condition into fieldName + operator.
     - ActionSetFieldCol52, use the provided target class and action.
 3. Emit one <list> per rule, with <value> entries matching the exact column sequence above.

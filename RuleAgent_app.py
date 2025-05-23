@@ -1,6 +1,14 @@
 import os
+from dotenv import load_dotenv
 import streamlit as st
 from DroolsLLMAgent import DroolsLLMAgent
+
+# Load environment variables
+print("Loading environment variables in RuleAgent_app.py...")
+load_dotenv()
+
+# Debug: Print environment status
+print("OPENAI_API_KEY exists:", "Yes" if os.getenv("OPENAI_API_KEY") else "No")
 
 # Initialize the Drools LLM Agent in session state
 if 'agent' not in st.session_state:
@@ -8,6 +16,7 @@ if 'agent' not in st.session_state:
     if not openai_key:
         st.error("Please set the OPENAI_API_KEY environment variable.")
         st.stop()
+    print("Initializing DroolsLLMAgent with API key length:", len(openai_key))
     st.session_state.agent = DroolsLLMAgent(api_key=openai_key)
 
 # Initialize chat history in session state

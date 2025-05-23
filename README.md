@@ -102,3 +102,4 @@ When you run `server.py`, two services will start:
    - Provides a user-friendly web interface
    - Automatically launches when you start the server
    - Use this for interactive rule creation and testing
+   

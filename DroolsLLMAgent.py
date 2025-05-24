@@ -5,9 +5,11 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchValue
+from pathlib import Path
+from logger_utils import log_decorator, log_operation, logger
 
 # Load environment variables
-print("Loading environment variables in DroolsLLMAgent.py...")
+logger.info("Loading environment variables in DroolsLLMAgent.py...")
 load_dotenv()
 
 # Populate these lists with Java class names from your knowledge base
@@ -230,22 +232,104 @@ def embed_text(text: str) -> list:
     res = oai.embeddings.create(input=text, model=EMBEDDING_MODEL)
     return res.data[0].embedding
 
+@log_decorator('search')
 def searchDroolsRules(rule_name: str = None, conditions: List[str] = None, actions: List[str] = None) -> List[Dict[str, Any]]:
     """
-    Stubbed search: returns a dict with status and a list of matching rules.
+    Search through Drools rules using semantic search via Qdrant.
+    Returns a list of matching rules with their details.
     """
-    # DEBUG: print incoming search criteria
-    print("[DEBUG] searchDroolsRules called with:")
-    print(f"  rule_name: {rule_name}")
-    print(f"  conditions: {conditions}")
-    print(f"  actions: {actions}")
-    # Sample data
-    sample_rules = [
-        {"rule_name": "SampleRule1", "conditions": ["age > 18"], "actions": ["approve"]},
-        {"rule_name": "SampleRule2", "conditions": ["sales < 10000", "restaurant size is large"], "actions": ["notify manager"]}
-    ]
-    return {"status": "success", "rules": sample_rules}
+    logger.debug(f"Starting search with parameters: rule_name={rule_name}, conditions={conditions}, actions={actions}")
+    
+    # Construct search query from the provided parameters
+    search_parts = []
+    if rule_name:
+        search_parts.append(f"Rule named: {rule_name}")
+    if conditions:
+        search_parts.append(f"Conditions: {', '.join(conditions)}")
+    if actions:
+        search_parts.append(f"Actions: {', '.join(actions)}")
+    
+    search_query = " ".join(search_parts)
+    logger.debug(f"Constructed search query: {search_query}")
+    
+    # If no search criteria provided, return empty results
+    if not search_query:
+        return {"status": "success", "rules": []}
+    
+    try:
+        # First, check if collection exists
+        collections = qdrant.get_collections()
+        logger.debug(f"[DEBUG] Available collections: {[c.name for c in collections.collections]}")
+        
+        if COLLECTION_NAME not in [c.name for c in collections.collections]:
+            logger.debug(f"[DEBUG] Collection {COLLECTION_NAME} not found!")
+            return {"status": "error", "message": f"Collection {COLLECTION_NAME} not found", "rules": []}
+            
+        # Generate embedding for the search query
+        logger.debug("[DEBUG] Generating embedding for search query...")
+        query_embedding = embed_text(search_query)
+        logger.debug("[DEBUG] Embedding generated successfully")
+        
+        # Build metadata filter
+        must_conditions = []
+        
+        # Add type filter to only get rules (not Java classes)
+        must_conditions.append(
+            FieldCondition(
+                key="type",
+                match=MatchValue(value="rule_example")
+            )
+        )
+        
+        # Add source filter if rule_name is provided
+        if rule_name:
+            # If it's a full filename, use it directly
+            if rule_name.endswith('.drl') or rule_name.endswith('.gdst'):
+                must_conditions.append(
+                    FieldCondition(
+                        key="source",
+                        match=MatchValue(value=rule_name)
+                    )
+                )
+            else:
+                # If it's a partial name, we'll rely on semantic search
+                pass
+        
+        search_filter = Filter(must=must_conditions) if must_conditions else None
+        
+        # Search in Qdrant
+        logger.debug("[DEBUG] Executing Qdrant search...")
+        search_results = qdrant.search(
+            collection_name=COLLECTION_NAME,
+            query_vector=query_embedding,
+            query_filter=search_filter,
+            limit=10  # Adjust this number based on needs
+        )
+        logger.debug(f"[DEBUG] Search completed. Found {len(search_results)} results")
+        
+        # Process and format results
+        matching_rules = []
+        for hit in search_results:
+            payload = hit.payload
+            logger.debug(f"[DEBUG] Processing hit with payload: {payload}")
+            matching_rules.append({
+                "rule_name": payload.get("title", payload.get("source", "Unknown")),  # Use title if available, fallback to source
+                "file_name": payload.get("source", "unknown"),
+                "file_type": payload.get("format", "unknown"),
+                "rule_type": payload.get("rule_type", "unknown"),
+                "target_class": payload.get("target_class", "unknown"),
+                "score": hit.score
+            })
+        
+        return {"status": "success", "rules": matching_rules}
+        
+    except Exception as e:
+        logger.error(f"[DEBUG] Error during semantic search: {str(e)}")
+        import traceback
+        logger.debug(f"[DEBUG] Full traceback: {traceback.format_exc()}")
+        return {"status": "error", "message": str(e), "rules": []}
 
+@log_decorator('generate')
 def generateDroolsRuleFromJson(json_payload: dict) -> str:
     # Initialize Qdrant client
     qdrant = QdrantClient(
@@ -511,8 +595,82 @@ INSTRUCTIONS:
 def editDroolsRule(**payload: Any) -> Dict[str, Any]:
     return {"status": "success", "rule_name": payload.get("rule_name")}
 
+@log_decorator('delete')
 def deleteDroolsRule(rule_name: str) -> Dict[str, Any]:
-    return {"status": "deleted", "rule_name": rule_name}
+    """
+    Delete a Drools rule file from the rules_examples directory.
+    First searches for the rule to confirm it exists, then deletes it.
+    """
+    logger.debug(f"Attempting to delete rule: {rule_name}")
+    
+    try:
+        # First, search for the rule to get its exact filename
+        search_results = searchDroolsRules(rule_name=rule_name)
+        
+        if search_results["status"] != "success":
+            error_msg = f"Failed to search for rule: {search_results.get('message', 'Unknown error')}"
+            logger.error(error_msg)
+            return {"status": "error", "message": error_msg, "rule_name": rule_name}
+            
+        if not search_results["rules"]:
+            error_msg = f"Rule '{rule_name}' not found"
+            logger.error(error_msg)
+            return {"status": "error", "message": error_msg, "rule_name": rule_name}
+            
+        # Get the first matching rule's filename
+        rule_file = search_results["rules"][0]["file_name"]
+        
+        # Construct the full path
+        rules_dir = Path(RULES_DIR) if RULES_DIR else Path("rules_examples")
+        file_path = rules_dir / rule_file
+        
+        logger.info(f"Deleting file: {file_path}")
+        
+        # Delete the file
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            logger.info(f"Successfully deleted {file_path}")
+            
+            # Also remove from Qdrant if it exists
+            try:
+                # Search for the point with matching source
+                search_filter = Filter(
+                    must=[
+                        FieldCondition(
+                            key="source",
+                            match=MatchValue(value=rule_file)
+                        )
+                    ]
+                )
+                
+                # Get points to delete
+                search_results = qdrant.scroll(
+                    collection_name=COLLECTION_NAME,
+                    filter=search_filter,
+                    limit=1
+                )
+                
+                points = search_results[0]  # First element is points, second is next page offset
+                if points:
+                    point_ids = [point.id for point in points]
+                    qdrant.delete(
+                        collection_name=COLLECTION_NAME,
+                        points_selector=point_ids
+                    )
+                    logger.info(f"Removed rule from Qdrant index")
+            except Exception as e:
+                logger.warning(f"Failed to remove from Qdrant: {str(e)}")
+                # Don't fail the whole operation if Qdrant cleanup fails
+            
+            return {"status": "success", "message": f"Rule '{rule_file}' deleted successfully", "rule_name": rule_file}
+        else:
+            error_msg = f"Rule file '{rule_file}' not found in filesystem"
+            logger.error(error_msg)
+            return {"status": "error", "message": error_msg, "rule_name": rule_file}
+            
+    except Exception as e:
+        logger.error(f"Error during rule deletion: {str(e)}", exc_info=True)
+        return {"status": "error", "message": str(e), "rule_name": rule_name}
 
 # Example usage:
 # agent = DroolsLLMAgent(api_key="YOUR_API_KEY")

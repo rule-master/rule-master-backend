@@ -12,7 +12,7 @@ python -m venv venv
 2. Activate the virtual environment:
 - Windows:
 ```bash
-venv\Scripts\activate
+source venv/Scripts/activate
 ```
 - Mac/Linux:
 ```bash
@@ -102,3 +102,4 @@ When you run `server.py`, two services will start:
    - Provides a user-friendly web interface
    - Automatically launches when you start the server
    - Use this for interactive rule creation and testing
+   

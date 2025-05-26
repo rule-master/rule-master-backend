@@ -1,0 +1,186 @@
+{
+  "tableName": "restaurant-staffing-by-sales",
+  "packageName": "com.myspace.rules",
+  "imports": [
+    "com.myspace.restopsrecomms.RestaurantData",
+    "com.myspace.restopsrecomms.EmployeeRecommendation"
+  ],
+  "tableFormat": "EXTENDED_ENTRY",
+  "hitPolicy": "NONE",
+  "version": 1,
+  "attributes": [
+    {
+      "name": "salience",
+      "value": 12,
+      "dataType": "NUMERIC_INTEGER"
+    }
+  ],
+  "conditionPatterns": [
+    {
+      "type": "Pattern",
+      "factType": "RestaurantData",
+      "boundName": "$restaurant",
+      "conditions": [
+        {
+          "header": "Min Sales",
+          "factField": "totalExpectedSales",
+          "operator": ">=",
+          "fieldType": "Double",
+          "hidden": false,
+          "width": 100
+        },
+        {
+          "header": "Max Sales",
+          "factField": "totalExpectedSales",
+          "operator": "<",
+          "fieldType": "Double",
+          "hidden": false,
+          "width": 100
+        }
+      ]
+    }
+  ],
+  "actionColumns": [
+    {
+      "type": "BRLAction",
+      "header": "Employees",
+      "definition": [
+        "$recommendation : EmployeeRecommendation()",
+        "$recommendation.setEmployees(@{Employees})"
+      ],
+      "hidden": false
+    }
+  ],
+  "data": [
+    {
+      "rowNumber": 1,
+      "description": "0-100 sales",
+      "values": [
+        {
+          "columnName": "salience",
+          "value": 12,
+          "dataType": "NUMERIC_INTEGER"
+        },
+        {
+          "columnName": "Min Sales",
+          "value": 0.0,
+          "dataType": "NUMERIC_DOUBLE"
+        },
+        {
+          "columnName": "Max Sales",
+          "value": 100.0,
+          "dataType": "NUMERIC_DOUBLE"
+        },
+        {
+          "columnName": "Employees",
+          "value": "2",
+          "dataType": "STRING"
+        }
+      ]
+    },
+    {
+      "rowNumber": 2,
+      "description": "100-200 sales",
+      "values": [
+        {
+          "columnName": "salience",
+          "value": 12,
+          "dataType": "NUMERIC_INTEGER"
+        },
+        {
+          "columnName": "Min Sales",
+          "value": 100.0,
+          "dataType": "NUMERIC_DOUBLE"
+        },
+        {
+          "columnName": "Max Sales",
+          "value": 200.0,
+          "dataType": "NUMERIC_DOUBLE"
+        },
+        {
+          "columnName": "Employees",
+          "value": "3",
+          "dataType": "STRING"
+        }
+      ]
+    },
+    {
+      "rowNumber": 3,
+      "description": "200-300 sales",
+      "values": [
+        {
+          "columnName": "salience",
+          "value": 12,
+          "dataType": "NUMERIC_INTEGER"
+        },
+        {
+          "columnName": "Min Sales",
+          "value": 200.0,
+          "dataType": "NUMERIC_DOUBLE"
+        },
+        {
+          "columnName": "Max Sales",
+          "value": 300.0,
+          "dataType": "NUMERIC_DOUBLE"
+        },
+        {
+          "columnName": "Employees",
+          "value": "4",
+          "dataType": "STRING"
+        }
+      ]
+    },
+    {
+      "rowNumber": 4,
+      "description": "300-500 sales",
+      "values": [
+        {
+          "columnName": "salience",
+          "value": 12,
+          "dataType": "NUMERIC_INTEGER"
+        },
+        {
+          "columnName": "Min Sales",
+          "value": 300.0,
+          "dataType": "NUMERIC_DOUBLE"
+        },
+        {
+          "columnName": "Max Sales",
+          "value": 500.0,
+          "dataType": "NUMERIC_DOUBLE"
+        },
+        {
+          "columnName": "Employees",
+          "value": "5",
+          "dataType": "STRING"
+        }
+      ]
+    },
+    {
+      "rowNumber": 5,
+      "description": "over 500 sales",
+      "values": [
+        {
+          "columnName": "salience",
+          "value": 12,
+          "dataType": "NUMERIC_INTEGER"
+        },
+        {
+          "columnName": "Min Sales",
+          "value": 500.0,
+          "dataType": "NUMERIC_DOUBLE"
+        },
+        {
+          "columnName": "Max Sales",
+          "value": null,
+          "dataType": "NUMERIC_DOUBLE"
+        },
+        {
+          "columnName": "Employees",
+          "value": "6",
+          "dataType": "STRING"
+        }
+      ]
+    }
+  ]
+}

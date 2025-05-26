@@ -1,0 +1,15 @@
+package com.capstonespace.resopsrecomms;
+
+import com.capstonespace.restopsrecomms.RestaurantData;
+import com.capstonespace.restopsrecomms.EmployeeRecommendation;
+
+dialect "mvel";
+
+rule "recommend_extra_staff_for_autoking"
+    salience 90
+when
+    $restaurant : RestaurantData(hasAutoKing == true, size == "LARGE")
+then
+    $recommendation : EmployeeRecommendation()
+    $recommendation.setEmployees(2);
+end

@@ -1,4 +1,4 @@
-package com.myspace.recomendacion_empleados_demo_ie;
+package com.capstonespace.resopsrecomms;
 import java.util.Map;
 import java.util.HashMap;
 

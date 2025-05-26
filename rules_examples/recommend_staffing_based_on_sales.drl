@@ -1,0 +1,15 @@
+package com.myspace.restopsrecomms;
+
+import com.myspace.restopsrecomms.RestaurantData;
+import com.myspace.restopsrecomms.EmployeeRecommendation;
+
+rule "recommend_staffing_based_on_sales"
+    salience 80
+    when
+        $restaurant : RestaurantData(totalExpectedSales > 5000)
+        $recommendation : EmployeeRecommendation()
+    then
+        $recommendation.addRestaurantEmployees(2);
+        $recommendation.addRuleExecuted(drools.getRule().getName());
+        update($recommendation);
+end

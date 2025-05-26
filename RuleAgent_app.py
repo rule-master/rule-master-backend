@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 import streamlit as st
-from DroolsLLMAgent import DroolsLLMAgent
+# from DroolsLLMAgent import DroolsLLMAgent
 from logger_utils import logger, log_operation
 
 # Load environment variables
@@ -10,8 +10,16 @@ load_dotenv()
 
 # Log environment status
 logger.debug("Environment check - OPENAI_API_KEY exists: %s", "Yes" if os.getenv("OPENAI_API_KEY") else "No")
+from DroolsLLMAgent_updated import DroolsLLMAgent
 
 # Initialize the Drools LLM Agent in session state
+# if 'agent' not in st.session_state:
+#     openai_key = os.getenv("OPENAI_API_KEY")
+#     if not openai_key:
+#         st.error("Please set the OPENAI_API_KEY environment variable.")
+#         st.stop()
+#     st.session_state.agent = DroolsLLMAgent(api_key=openai_key)
+
 if 'agent' not in st.session_state:
     openai_key = os.getenv("OPENAI_API_KEY")
     if not openai_key:
@@ -31,6 +39,19 @@ if 'agent' not in st.session_state:
         log_operation('agent_initialization', {'status': 'failed'}, error=e)
         st.error(error_msg)
         st.stop()
+    
+    # Get Java directory from environment variable
+    java_dir = os.getenv("JAVA_DIR", "")
+    
+    # Get rules directory from environment variable or use default
+    rules_dir = os.getenv("RULES_DIR", os.path.join(os.getcwd(), "rules"))
+    
+    # Initialize agent with directories
+    st.session_state.agent = DroolsLLMAgent(
+        api_key=openai_key,
+        rules_dir=rules_dir,
+        java_dir=java_dir
+    )
 
 # Initialize chat history in session state
 if 'messages' not in st.session_state:

@@ -1,0 +1,296 @@
+<decision-table52> <!-- static -->
+ <!-- === Table Name, Row Number, Description, RuleName, Metadata & Attributes === -->
+ <tableName>__LLM_INSERT_TABLE_NAME__</tableName>                <!-- dynamic: rule/table name -->
+ <rowNumberCol>                                                 <!-- static -->
+   <hideColumn>false</hideColumn>                               <!-- static -->
+   <width>50</width>                                            <!-- static -->
+ </rowNumberCol>
+ <descriptionCol>                                               <!-- static -->
+   <hideColumn>false</hideColumn>                               <!-- static -->
+   <width>150</width>                                           <!-- static -->
+ </descriptionCol>
+ <ruleNameColumn>                                               <!-- static -->
+   <hideColumn>true</hideColumn>                                <!-- static -->
+   <width>150</width>                                           <!-- static -->
+ </ruleNameColumn>
+ <metadataCols/>                                                <!-- static: metadata columns -->
+ <attributeCols>                                                <!-- static container for attribute columns -->
+  <!-- LLM: repeat this block for each attribute (e.g. salience) if needed -->
+  <attribute-column52>
+    <typedDefaultValue>
+      <valueNumeric class="int">__LLM_INSERT_SALIENCE__</valueNumeric>  <!-- dynamic: salience value -->
+      <valueString></valueString>                                       <!-- static -->
+      <dataType>NUMERIC_INTEGER</dataType>                              <!-- static -->
+      <isOtherwise>false</isOtherwise>                                  <!-- static -->
+    </typedDefaultValue>
+    <hideColumn>true</hideColumn>                                      <!-- static -->
+    <width>130</width>                                                 <!-- static -->
+    <attribute>__LLM_INSERT_ATTRIBUTE_NAME__</attribute>               <!-- dynamic: attribute name, e.g. salience -->
+    <reverseOrder>false</reverseOrder>                                 <!-- static -->
+    <useRowNumber>false</useRowNumber>                                 <!-- static -->
+  </attribute-column52>
+ </attributeCols>
+  
+ <!-- === Imports: import INPUT_CLASS and TARGET_CLASS, plus any additional needed classes === -->
+ <imports>                                                  <!-- static -->
+  <imports>                                                <!-- static -->
+    <!-- LLM: always import the input and target classes -->
+    <org.kie.soup.project.datamodel.imports.Import>
+      <type>__INPUT_CLASS__</type>                         <!-- dynamic: fully qualified input DTO class -->
+    </org.kie.soup.project.datamodel.imports.Import>
+    <org.kie.soup.project.datamodel.imports.Import>
+      <type>__TARGET_CLASS__</type>                        <!-- dynamic: fully qualified target DTO class -->
+    </org.kie.soup.project.datamodel.imports.Import>
+    <!-- LLM: repeat this block for each additional import if needed -->
+    <org.kie.soup.project.datamodel.imports.Import>
+      <type>__LLM_INSERT_IMPORT_TYPE__</type>              <!-- dynamic: e.g. java.time.LocalTime -->
+    </org.kie.soup.project.datamodel.imports.Import>
+  </imports>
+ </imports>
+  
+ <packageName>
+  <!-- LLM: extract the Java package (everything before the last ".") from the input_class or target_class slot -->
+  __LLM_INSERT_PACKAGE_NAME__                              <!-- dynamic -->
+ </packageName>
+  
+ <!-- === Version: always static === -->
+ <version>739</version>                                      <!-- static -->
+  
+ <!-- === Table format and hit policy are fixed === -->
+ <tableFormat>EXTENDED_ENTRY</tableFormat>                  <!-- static -->
+ <hitPolicy>NONE</hitPolicy>                                <!-- static -->
+  
+ <!-- === Condition Patterns: input/output init, patterns and DSL fragments === -->
+ <conditionPatterns>  <!-- static root for all condition definitions -->
+  
+  <!-- Initialize your output object (TARGET_CLASS) dynamically -->
+  <org.drools.workbench.models.guided.dtable.shared.model.BRLConditionColumn>
+      <hideColumn>true</hideColumn>         <!-- static -->
+      <width>-1</width>                      <!-- static -->
+      <header>__LLM_INSERT_TARGET_ALIAS__</header>        <!-- dynamic: a human header for the target -->
+      <constraintValueType>1</constraintValueType>       <!-- static -->
+      <parameters/>                          <!-- static -->
+      <definition>
+        <org.drools.workbench.models.datamodel.rule.FreeFormLine>
+          <!-- dynamic: bind the target helper, e.g. "er : EmployeeRecommendation()" -->
+          <text>__LLM_INSERT_TARGET_BINDING__</text>
+        </org.drools.workbench.models.datamodel.rule.FreeFormLine>
+      </definition>
+      <childColumns>
+        <org.drools.workbench.models.guided.dtable.shared.model.BRLConditionVariableColumn>
+          <typedDefaultValue>
+            <valueBoolean>true</valueBoolean>                <!-- static -->
+            <valueString></valueString>                      <!-- static -->
+            <dataType>BOOLEAN</dataType>                     <!-- static -->
+            <isOtherwise>false</isOtherwise>                 <!-- static -->
+          </typedDefaultValue>
+          <hideColumn>true</hideColumn>                     <!-- static -->
+          <width>100</width>                                 <!-- static -->
+          <header>__LLM_INSERT_TARGET_ALIAS__</header>      <!-- dynamic -->
+          <constraintValueType>1</constraintValueType>       <!-- static -->
+          <fieldType>Boolean</fieldType>                    <!-- static -->
+          <parameters/>                                     <!-- static -->
+          <varName></varName>                               <!-- static -->
+        </org.drools.workbench.models.guided.dtable.shared.model.BRLConditionVariableColumn>
+      </childColumns>
+  </org.drools.workbench.models.guided.dtable.shared.model.BRLConditionColumn>
+  
+  <!-- Initialize your input object (INPUT_CLASS) dynamically -->
+  <org.drools.workbench.models.guided.dtable.shared.model.BRLConditionColumn>
+      <hideColumn>true</hideColumn>         <!-- static -->
+      <width>-1</width>                      <!-- static -->
+      <header>__LLM_INSERT_INPUT_ALIAS__</header>         <!-- dynamic: header for the input -->
+      <constraintValueType>1</constraintValueType>       <!-- static -->
+      <parameters/>                          <!-- static -->
+      <definition>
+        <org.drools.workbench.models.datamodel.rule.FreeFormLine>
+          <!-- dynamic: bind the input helper, e.g. "rd : RestaurantData()" -->
+          <text>__LLM_INSERT_INPUT_BINDING__</text>
+        </org.drools.workbench.models.datamodel.rule.FreeFormLine>
+      </definition>
+      <childColumns>
+        <org.drools.workbench.models.guided.dtable.shared.model.BRLConditionVariableColumn>
+          <typedDefaultValue>
+            <valueBoolean>true</valueBoolean>                <!-- static -->
+            <valueString></valueString>                      <!-- static -->
+            <dataType>BOOLEAN</dataType>                     <!-- static -->
+            <isOtherwise>false</isOtherwise>                 <!-- static -->
+          </typedDefaultValue>
+          <hideColumn>true</hideColumn>                     <!-- static -->
+          <width>100</width>                                 <!-- static -->
+          <header>__LLM_INSERT_INPUT_ALIAS__</header>      <!-- dynamic -->
+          <constraintValueType>1</constraintConstraintValueType>       <!-- static -->
+          <fieldType>Boolean</fieldType>                    <!-- static -->
+          <parameters/>                                     <!-- static -->
+          <varName></varName>                               <!-- static -->
+        </org.drools.workbench.models.guided.dtable.shared.model.BRLConditionVariableColumn>
+      </childColumns>
+  </org.drools.workbench.models.guided.dtable.shared.model.BRLConditionColumn>
+  
+  <!-- Pattern-based conditions for INPUT_CLASS fields -->
+  <Pattern52>
+      <factType>__INPUT_CLASS__</factType>     <!-- dynamic: your input DTO class -->
+      <boundName>__LLM_INSERT_INPUT_ALIAS__</boundName>   <!-- dynamic alias -->
+      <isNegated>false</isNegated>            <!-- static -->
+  
+      <conditions>
+        <!-- LLM: repeat for each simple field condition on INPUT_CLASS -->
+        <condition-column52>
+          <typedDefaultValue>
+            <valueString>__LLM_INSERT_VALUE__</valueString>      <!-- dynamic -->
+            <dataType>__LLM_INSERT_TYPE__</dataType>             <!-- dynamic -->
+            <isOtherwise>false</isOtherwise>                    <!-- static -->
+          </typedDefaultValue>
+          <hideColumn>false</hideColumn>        <!-- static -->
+          <width>100</width>                    <!-- static -->
+          <header>__LLM_INSERT_HEADER__</header>         <!-- dynamic -->
+          <constraintValueType>1</constraintConstraintValueType>   <!-- static -->
+          <factField>__LLM_INSERT_FIELD__</factField>    <!-- dynamic -->
+          <fieldType>__LLM_INSERT_FIELD_TYPE__</fieldType> <!-- dynamic -->
+          <operator>__LLM_INSERT_OPERATOR__</operator>    <!-- dynamic -->
+          <parameters/>                                       <!-- static -->
+          <binding>__LLM_INSERT_BINDING__</binding>     <!-- dynamic -->
+        </condition-column52>
+      </conditions>
+  
+      <window>
+        <parameters/>  <!-- static -->
+      </window>
+      <entryPointName></entryPointName>  <!-- static -->
+  </Pattern52>
+  
+  <!-- DSL-style conditions via BRLConditionColumn -->
+  <!-- LLM: repeat this block for each free-form DSL condition -->
+  <org.drools.workbench.models.guided.dtable.shared.model.BRLConditionColumn>
+      <hideColumn>false</hideColumn>         <!-- static -->
+      <width>-1</width>                      <!-- static -->
+      <header>__LLM_INSERT_DSL_HEADER__</header>     <!-- dynamic -->
+      <constraintValueType>1</constraintConstraintValueType>   <!-- static -->
+      <parameters/>                          <!-- static -->
+      <definition>
+        <org.drools.workbench.models.datamodel.rule.FreeFormLine>
+          <text>__LLM_INSERT_DSL_EXPRESSION__</text>  <!-- dynamic -->
+        </org.drools.workbench.models.datamodel.rule.FreeFormLine>
+      </definition>
+      <childColumns>
+        <org.drools.workbench.models.guided.dtable.shared.model.BRLConditionVariableColumn>
+          <typedDefaultValue>
+            <valueString>__LLM_INSERT_DSL_VALUE__</valueString>   <!-- dynamic -->
+            <dataType>__LLM_INSERT_DSL_TYPE__</dataType>          <!-- dynamic -->
+            <isOtherwise>false</isOtherwise>                     <!-- static -->
+          </typedDefaultValue>
+          <hideColumn>false</hideColumn>                       <!-- static -->
+          <width>100</width>                                   <!-- static -->
+          <header>__LLM_INSERT_DSL_HEADER__</header>            <!-- dynamic -->
+          <constraintValueType>1</constraintConstraintValueType>         <!-- static -->
+          <fieldType>Object</fieldType>                        <!-- static -->
+          <parameters/>                                        <!-- static -->
+          <varName>__LLM_INSERT_DSL_VAR__</varName>            <!-- dynamic -->
+        </org.drools.workbench.models.guided.dtable.shared.model.BRLConditionVariableColumn>
+      </childColumns>
+  </org.drools.workbench.models.guided.dtable.shared.model.BRLConditionColumn>
+ </conditionPatterns>
+  
+ <actionCols>                                              <!-- static root for all actions -->
+    <!-- LLM: repeat this BRLActionColumn block for each user action -->
+    <org.drools.workbench.models.guided.dtable.shared.model.BRLActionColumn>
+      <hideColumn>false</hideColumn>                        <!-- static -->
+      <width>-1</width>                                     <!-- static -->
+      
+      <!-- dynamic: human-readable header for this action, e.g. "Employees HD" -->
+      <header>__LLM_INSERT_ACTION_HEADER__</header>          <!-- dynamic -->
+      
+      <definition>                                          <!-- static container -->
+        <org.drools.workbench.models.datamodel.rule.FreeFormLine>
+          <!-- dynamic: full method call on your TARGET_ALIAS, e.g. -->
+          <!--    "er.addLocation("@{Puesto}")" or -->
+          <!--    "er.setHomeDeliveryEmployees(@{employees})" -->
+          <text>__LLM_INSERT_ACTION_EXPRESSION__</text>      <!-- dynamic -->
+        </org.drools.workbench.models.guided.dtable.shared.model.FreeFormLine>
+      </definition>
+      
+      <childColumns>                                        <!-- static container -->
+        <org.drools.workbench.models.guided.dtable.shared.model.BRLActionVariableColumn>
+          
+          <typedDefaultValue>                              <!-- static wrapper -->
+            <!-- dynamic: default literal if any (often blank) -->
+            <!-- for non-boolean: -->
+            <valueString>__LLM_INSERT_ACTION_DEFAULT__</valueString>  <!-- dynamic -->
+            <!-- for boolean: -->
+            <valueBoolean>__LLM_INSERT_ACTION_DEFAULT__</valueBoolean>  <!-- dynamic -->
+            <!-- dynamic: data type of the action parameter, e.g. STRING, INTEGER -->
+            <dataType>__LLM_INSERT_ACTION_DATA_TYPE__</dataType>      <!-- dynamic -->
+            <isOtherwise>false</isOtherwise>                         <!-- static -->
+          </typedDefaultValue>
+          
+          <hideColumn>false</hideColumn>                   <!-- static -->
+          <!-- dynamic: column width if you care, e.g. 100 or 145 -->
+          <width>__LLM_INSERT_ACTION_WIDTH__</width>        <!-- dynamic -->
+          
+          <!-- dynamic: same as header above -->
+          <header>__LLM_INSERT_ACTION_HEADER__</header>     <!-- dynamic -->
+          <!-- dynamic: variable name placeholder, e.g. "Puesto" or "employees" -->
+          <varName>__LLM_INSERT_ACTION_VAR__</varName>      <!-- dynamic -->
+          <!-- dynamic: fieldType if needed, often Object -->
+          <fieldType>__LLM_INSERT_ACTION_FIELD_TYPE__</fieldType>  <!-- dynamic -->  
+        </org.drools.workbench.models.guided.dtable.shared.model.BRLActionVariableColumn>
+      </childColumns>
+    </org.drools.workbench.models.guided.dtable.shared.model.BRLActionColumn>
+ </actionCols>
+  
+ <!-- === Data Section: rows for each rule instance === -->
+ <data>                                                    <!-- static root for data rows -->
+    <!-- LLM: repeat one <list> block per rule row -->
+  <list>
+    <!-- LLM: insert <value> cells in this exact order: row number, description, attributeCols, conditionCols, actionCols -->
+    <!-- Row Number -->
+    <value>
+        <valueNumeric class="int">__LLM_INSERT_ROW_NUMBER__</valueNumeric> <!-- dynamic row index -->
+        <valueString></valueString>                                        <!-- static blank -->
+        <dataType>NUMERIC_INTEGER</dataType>                               <!-- static -->
+        <isOtherwise>false</isOtherwise>                                   <!-- static -->
+    </value>
+    <!-- Description (optional) -->
+    <value>
+        <valueString>__LLM_INSERT_DESCRIPTION__</valueString>               <!-- dynamic description or blank -->
+        <dataType>STRING</dataType>                                        <!-- static -->
+        <isOtherwise>false</isOtherwise>                                   <!-- static -->
+    </value>
+    <!-- Attributes: one <value> per attribute column -->
+    <!-- LLM: repeat this <value> for each attribute column -->
+    <value>
+        <valueString>__LLM_INSERT_ATTRIBUTE_VALUE__</valueString>           <!-- dynamic -->
+        <dataType>__LLM_INSERT_ATTRIBUTE_TYPE__</dataType>                 <!-- dynamic -->
+        <isOtherwise>false</isOtherwise>                                   <!-- static -->
+    </value>
+    <!-- Conditions: one <value> per condition column -->
+    <!-- LLM: repeat this <value> for each condition column in the same order as headers -->
+    <value>
+        <valueString>__LLM_INSERT_CONDITION_VALUE__</valueString>           <!-- dynamic -->
+        <dataType>__LLM_INSERT_CONDITION_TYPE__</dataType>                 <!-- dynamic -->
+        <isOtherwise>false</isOtherwise>                                   <!-- static -->
+    </value>
+    <!-- Actions: one <value> per action column -->
+    <!-- LLM: repeat this <value> for each action column in the same order as headers -->
+    <value>
+        <valueString>__LLM_INSERT_ACTION_VALUE__</valueString>              <!-- dynamic -->
+        <dataType>__LLM_INSERT_ACTION_TYPE__</dataType>                    <!-- dynamic -->
+        <isOtherwise>false</isOtherwise>                                   <!-- static -->
+    </value>
+  </list>
+ </data>
+  
+ <!-- === Audit Log: always the same filter of acceptedTypes === -->
+ <auditLog>                                                  <!-- static -->
+    <filter class="org.drools.guvnor.client.modeldriven.dt52.auditlog.DecisionTableAuditLogFilter">  <!-- static -->
+      <acceptedTypes>                                         <!-- static -->
+        <entry><string>INSERT_ROW</string><boolean>false</boolean></entry>
+        <entry><string>INSERT_COLUMN</string><boolean>false</boolean></entry>
+        <entry><string>DELETE_ROW</string><boolean>false</boolean></entry>
+        <entry><string>DELETE_COLUMN</string><boolean>false</boolean></entry>
+        <entry><string>UPDATE_COLUMN</string><boolean>false</boolean></entry>
+      </acceptedTypes>
+    </filter>
+    <entries/>                                               <!-- static -->
+ </auditLog>
+</decision-table52>

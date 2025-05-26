@@ -23,8 +23,12 @@ if not os.getenv("OPENAI_API_KEY"):
 def kill_port(port: int) -> bool:
     """Kill any process using the specified port."""
     try:
-        # Windows specific command to find and kill process on port
-        cmd = f'for /f "tokens=5" %a in (\'netstat -aon ^| findstr :{port}\') do taskkill /F /PID %a'
+        if os.name == 'nt':
+            # Windows specific command
+            cmd = f'for /f "tokens=5" %a in (\'netstat -aon ^| findstr :{port}\') do taskkill /F /PID %a'
+        else:
+            # macOS/Linux: find the PID and kill
+            cmd = f"lsof -ti tcp:{port} | xargs kill -9"
         subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
     except:
@@ -71,7 +75,15 @@ def start_streamlit():
         print(f"http://localhost:{port}")
         print(f"{'='*50}\n")
         
-        # Run streamlit with minimal output
+        # Build Popen kwargs dynamically
+        popen_kwargs = {
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+        }
+        # Only set CREATE_NO_WINDOW on Windows
+        if hasattr(subprocess, "CREATE_NO_WINDOW") and os.name == "nt":
+            popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+
         process = subprocess.Popen(
             [
                 sys.executable,
@@ -84,22 +96,17 @@ def start_streamlit():
                 "--server.headless", "true",
                 "--browser.gatherUsageStats", "false"
             ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            creationflags=subprocess.CREATE_NO_WINDOW
+            **popen_kwargs
         )
         
         # Wait a bit longer for startup and check process status
         try:
-            # Wait up to 5 seconds to see if process dies immediately
             process.wait(timeout=5)
             if process.returncode is not None:
                 print("\nStreamlit failed to start. Error output:")
-                error_output = process.stderr.read().decode()
-                print(error_output)
+                print(process.stderr.read().decode())
                 return
         except subprocess.TimeoutExpired:
-            # Process is still running after 5 seconds, which is good
             print(f"\nStreamlit is running successfully!")
             print(f"Open your browser and navigate to: http://localhost:{port}")
             print(f"{'='*50}")

@@ -1,4 +1,4 @@
-package com.capstonespace.resopsrecomms;
+package com.myspace.resopsrecomms;
 import java.util.Map;
 import java.util.HashMap;
 

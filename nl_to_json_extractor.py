@@ -35,7 +35,9 @@ class NLToJsonExtractor:
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
         self.model = model
         self.client = OpenAI(api_key=self.api_key)
-        self.package = os.environ.get("DROOLS_PACKAGE_NAME", "com.capstonespace.resopsrecomms")
+        # self.package = os.environ.get("DROOLS_PACKAGE_NAME", "com.myspace.resopsrecomms")
+        self.package = "com.myspace.resopsrecomms"
+        print(f"Using package name: {self.package}")
         
     def detect_rule_type(self, user_input: str) -> str:
         """
@@ -426,11 +428,9 @@ Your response should be:
 - "tableFormat" is always "EXTENDED_ENTRY".
 - "hitPolicy" is always "NONE".
 - "version" is always 739.
-- "attributes" is an array containing exactly two objects in this order:
+- "attributes" is an array containing exactly one objects in this order:
   1. {{ "name": "salience", "value": <number>, "dataType": "NUMERIC_INTEGER", "hideColumn": false, "reverseOrder": false, "useRowNumber": false }}
-  2. {{ "name": "enabled", "value": true, "dataType": "BOOLEAN", "hideColumn": true }}
   - Use the salience value provided by the user. If not provided, use a default of 10.
-  - Always set "enabled": true and "hideColumn": true for that attribute.
   - Always include "reverseOrder": false and "useRowNumber": false for the salience attribute.
 
 """
@@ -1067,11 +1067,9 @@ If you do have a FreeFormLine/EVAL for "even dailySales," insert it just before 
 4. For each range mentioned, create a corresponding data row with the appropriate values
 
 5. ALWAYS include the following in your JSON output:
-   - The 'enabled' attribute with value=true, dataType=BOOLEAN, and hideColumn=true
    - Two BRLCondition entries: one for EmployeeRecommendation and one for RestaurantData
    - Include typedDefaultValue for all columns with appropriate default values
    - For salience attribute, always include reverseOrder=false and useRowNumber=false
-   - DO NOT include a value for the enabled attribute in the data rows
 
 6. CRITICAL SCHEMA REQUIREMENTS:
    - All BRLCondition entries MUST be placed in the "conditionsBRL" array, NOT in "conditionPatterns"

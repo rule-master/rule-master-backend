@@ -2853,7 +2853,7 @@ class JsonToGdstConverter:
                     value_numeric.set("class", "double")
                 numeric_value = typed_default_value.get("valueNumeric")
                 if numeric_value is not None and numeric_value != "":
-                    value_numeric.text = str(numeric_value)
+                    value_numeric.text = str(numeric_value.get("value"))
                 else:
                     value_numeric.text = "0" if data_type == "NUMERIC_INTEGER" else "0.0"
             

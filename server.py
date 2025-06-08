@@ -77,8 +77,8 @@ def start_streamlit():
         
         # Build Popen kwargs dynamically
         popen_kwargs = {
-            "stdout": subprocess.PIPE,
-            "stderr": subprocess.PIPE,
+            "stdout": sys.stdout,
+            "stderr": sys.stdout,
         }
         # Only set CREATE_NO_WINDOW on Windows
         if hasattr(subprocess, "CREATE_NO_WINDOW") and os.name == "nt":

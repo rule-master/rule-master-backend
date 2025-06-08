@@ -78,7 +78,7 @@ class DroolsLLMAgent:
         """
         try:
             # Import the map_java_classes function
-            from utils.java_class_mapper import map_java_classes
+            from utils.parse_java_classes import parse_java_classes
             
             if not self.java_dir or not os.path.exists(self.java_dir):
                 # Default mapping if Java directory not available
@@ -87,7 +87,7 @@ class DroolsLLMAgent:
                     "EmployeeRecommendation": "com.capstonespace.resopsrecomms"
                 }
             
-            return map_java_classes(self.java_dir)
+            return parse_java_classes(self.java_dir)
         except ImportError:
             # If the module is not available, return default mapping
             return {

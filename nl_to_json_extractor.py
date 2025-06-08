@@ -1,15 +1,22 @@
 """
-LLM-driven Natural Language to JSON Schema Extractor for Drools Rules
+LLM-driven Natural Language to JSON Schema Extractor for Drools Rules - Modular Prompt-Driven Version
 
 This module provides functionality to extract structured JSON schemas from natural language
 descriptions of Drools rules, which can then be converted to DRL or GDST files.
+
+Key features:
+1. Dynamic Java class support with package and method extraction
+2. Separation of condition patterns and BRL conditions
+3. Clear guidelines for when to use each condition type
+4. No hard-coding - all schema generation is driven by the LLM prompt
+5. Complete schema adherence through prompt engineering
+6. Modular prompt structure for better maintainability
 """
 
 import os
 import re
 import json
 from typing import Dict, List, Any, Optional
-import openai
 from openai import OpenAI
 
 class NLToJsonExtractor:
@@ -17,7 +24,7 @@ class NLToJsonExtractor:
     Extracts structured JSON schemas from natural language descriptions of Drools rules.
     """
     
-    def __init__(self, api_key: str = None, model: str = "gpt-4o"):
+    def __init__(self, api_key: str = None, model: str = "gpt-4o-mini"):
         """
         Initialize the extractor with OpenAI API key and model.
         
@@ -25,9 +32,10 @@ class NLToJsonExtractor:
             api_key (str): OpenAI API key
             model (str): OpenAI model to use
         """
-        self.api_key = api_key
+        self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
         self.model = model
-        self.client = OpenAI(api_key=api_key)
+        self.client = OpenAI(api_key=self.api_key)
+        self.package = os.environ.get("DROOLS_PACKAGE_NAME", "com.capstonespace.resopsrecomms")
         
     def detect_rule_type(self, user_input: str) -> str:
         """
@@ -82,14 +90,14 @@ class NLToJsonExtractor:
         # Default to DRL for simpler rules
         return "drl"
     
-    def extract_to_json(self, user_input: str, rule_type: str = None, java_classes_map: Dict[str, str] = None) -> Dict[str, Any]:
+    def extract_to_json(self, user_input: str, rule_type: str = "gdst", java_classes_map: Dict[str, Dict] = None) -> Dict[str, Any]:
         """
         Extract structured JSON schema from natural language description.
         
         Args:
             user_input (str): Natural language description of the rule
-            rule_type (str): "drl" or "gdst", if None will be auto-detected
-            java_classes_map (dict): Dictionary mapping class names to package names
+            rule_type (str): "drl" or "gdst", defaults to "gdst"
+            java_classes_map (dict): Dictionary mapping class names to package, class name, and methods
             
         Returns:
             dict: Structured JSON schema for the rule
@@ -103,77 +111,21 @@ class NLToJsonExtractor:
             return self._extract_drl_json(user_input, java_classes_map)
         else:  # gdst
             return self._extract_gdst_json(user_input, java_classes_map)
-    
-    def _extract_drl_json(self, user_input: str, java_classes_map: Dict[str, str] = None) -> Dict[str, Any]:
+          
+    def _extract_drl_json(self, user_input: str, java_classes_map: Dict[str, Dict] = None) -> Dict[str, Any]:
         """
         Extract DRL JSON schema from natural language description.
         
         Args:
             user_input (str): Natural language description of the rule
-            java_classes_map (dict): Dictionary mapping class names to package names
+            java_classes_map (dict): Dictionary mapping class names to package, class name, and methods
             
         Returns:
             dict: Structured JSON schema for DRL rule
         """
         # Prepare the system prompt for DRL extraction
-        system_prompt = """You are a specialized AI that extracts structured information from natural language descriptions of Drools rules to create a JSON schema. 
-
-Your task is to extract ONLY the dynamic elements from the user's description and fill them into a predefined JSON structure for a Drools Rule Language (DRL) file.
-
-The JSON schema for a DRL rule has the following structure:
-```json
-{
-  "ruleName": "string",
-  "packageName": "string",
-  "imports": ["string"],
-  "attributes": {
-    "salience": number,
-    "noLoop": boolean,
-    "agenda-group": "string"
-  },
-  "globals": ["string"],
-  "conditions": ["string"],
-  "actions": ["string"]
-}
-```
-
-IMPORTANT GUIDELINES:
-1. Extract ONLY the dynamic elements mentioned in the user's description
-2. For any fields not explicitly mentioned, use these defaults:
-   - packageName: "com.myspace.rules"
-   - imports: ["com.myspace.restopsrecomms.RestaurantData", "com.myspace.restopsrecomms.EmployeeRecommendation"]
-   - salience: 10
-   - conditions: ["$restaurant : RestaurantData()"]
-   - actions: ["$recommendation : EmployeeRecommendation()"]
-3. If the rule name is not specified, generate a descriptive one based on the rule's purpose
-4. Format conditions and actions as valid Drools syntax
-5. Return ONLY the JSON object, nothing else
-
-Example:
-User: "Create a rule that adds 2 employees when a restaurant has AutoKing and the restaurant size is Large. The rule should have a salience of 90."
-
-Your response should be:
-```json
-{
-  "ruleName": "recommend_extra_staff_for_autoking",
-  "packageName": "com.myspace.rules",
-  "imports": ["com.myspace.restopsrecomms.RestaurantData", "com.myspace.restopsrecomms.EmployeeRecommendation"],
-  "attributes": {
-    "salience": 90
-  },
-  "globals": [],
-  "conditions": [
-    "$restaurant : RestaurantData()",
-    "$restaurant.hasAutoKing == true",
-    "$restaurant.size == \"LARGE\""
-  ],
-  "actions": [
-    "$recommendation : EmployeeRecommendation()",
-    "$recommendation.setEmployees(2);"
-  ]
-}
-```"""
-
+        system_prompt = self._create_drl_system_prompt(java_classes_map)
+        
         # Prepare the user prompt
         user_prompt = f"Extract the structured JSON schema for a DRL rule from this description: {user_input}"
         
@@ -191,248 +143,172 @@ Your response should be:
         json_str = response.choices[0].message.content
         json_data = json.loads(json_str)
         
-        # Update package name if Java classes are provided
-        if java_classes_map:
-            # Look for class names in the conditions and actions
-            for class_name, package in java_classes_map.items():
-                # Check if the class is used in conditions or actions
-                conditions_str = " ".join(json_data.get("conditions", []))
-                actions_str = " ".join(json_data.get("actions", []))
-                
-                if class_name in conditions_str or class_name in actions_str:
-                    # Update package name and imports
-                    json_data["packageName"] = package.rsplit(".", 1)[0]
-                    
-                    # Add import if not already present
-                    full_class_path = f"{package}.{class_name}"
-                    if full_class_path not in json_data.get("imports", []):
-                        json_data.setdefault("imports", []).append(full_class_path)
+        # Post-process the JSON data
+        json_data = self._post_process_drl_json(json_data, java_classes_map)
         
         return json_data
-    
-    def _extract_gdst_json(self, user_input: str, java_classes_map: Dict[str, str] = None) -> Dict[str, Any]:
+      
+    def _create_drl_system_prompt(self, java_classes_map: Dict[str, Dict] = None) -> str:
         """
-        Extract GDST JSON schema from natural language description.
+        Create the system prompt for DRL extraction.
         
         Args:
-            user_input (str): Natural language description of the rule
-            java_classes_map (dict): Dictionary mapping class names to package names
+            java_classes_map (dict): Dictionary mapping class names to package, class name, and methods
             
         Returns:
-            dict: Structured JSON schema for GDST rule
+            str: System prompt for DRL extraction
         """
-        # Prepare the system prompt for GDST extraction
-        system_prompt = """You are a specialized AI that extracts structured information from natural language descriptions of Drools rules to create a JSON schema.
+        # Base system prompt
+        system_prompt = """You are a specialized AI that extracts structured information from natural language descriptions of Drools rules to create a JSON schema. 
 
-Your task is to extract ONLY the dynamic elements from the user's description and fill them into a predefined JSON structure for a Drools Guided Decision Table (GDST) file.
+Your task is to extract ONLY the dynamic elements from the user's description and fill them into a predefined JSON structure for a Drools Rule Language (DRL) file.
 
-The JSON schema for a GDST rule has the following structure:
+The JSON schema for a DRL rule has the following structure:
 ```json
 {
-  "tableName": "string",
+  "ruleName": "string",
   "packageName": "string",
   "imports": ["string"],
-  "tableFormat": "EXTENDED_ENTRY",
-  "hitPolicy": "NONE",
-  "version": 1,
-  "attributes": [
-    {
-      "name": "salience",
-      "value": number,
-      "dataType": "NUMERIC_INTEGER"
-    }
-  ],
-  "conditionPatterns": [
-    {
-      "type": "Pattern",
-      "factType": "string",
-      "boundName": "string",
-      "conditions": [
-        {
-          "header": "string",
-          "factField": "string",
-          "operator": "string",
-          "fieldType": "string",
-          "hidden": false,
-          "width": 100
-        }
-      ]
-    }
-  ],
-  "actionColumns": [
-    {
-      "type": "BRLAction",
-      "header": "string",
-      "definition": ["string"],
-      "hidden": false
-    }
-  ],
-  "data": [
-    {
-      "rowNumber": number,
-      "description": "string",
-      "values": [
-        {
-          "columnName": "string",
-          "value": any,
-          "dataType": "string"
-        }
-      ]
-    }
-  ]
+  "attributes": {
+    "salience": number
+  },
+  "globals": [],
+  "conditions": ["string"],
+  "actions": ["string"]
 }
 ```
 
 IMPORTANT GUIDELINES:
 1. Extract ONLY the dynamic elements mentioned in the user's description
 2. For any fields not explicitly mentioned, use these defaults:
-   - packageName: "com.myspace.rules"
-   - imports: ["com.myspace.restopsrecomms.RestaurantData", "com.myspace.restopsrecomms.EmployeeRecommendation"]
-   - tableFormat: "EXTENDED_ENTRY"
-   - hitPolicy: "NONE"
-   - version: 1
    - salience: 10
-3. If the table name is not specified, generate a descriptive one based on the table's purpose
-4. Convert table name to kebab-case (e.g., "staff-recommendation-table")
-5. For conditions involving ranges (e.g., sales between X and Y), create two condition columns: one for ">=" and one for "<"
-6. For each range mentioned, create a corresponding data row with the appropriate values
-7. Return ONLY the JSON object, nothing else
+   - conditions: ["$restaurant : RestaurantData()", "$recommendation : EmployeeRecommendation()"]
+3. If the rule name is not specified, generate a descriptive one based on the rule's purpose
+4. Format conditions and actions as valid Drools syntax
+5. Return ONLY the JSON object, nothing else
+"""
+
+        # Add Java class information if available
+        if java_classes_map:
+            system_prompt += "\n\nYou have access to the following Java class definitions:\n"
+            
+            for class_name, class_info in java_classes_map.items():
+                package = class_info.get("package", "")
+                methods = class_info.get("methods", [])
+                
+                system_prompt += f"\nClass: {class_name}\n"
+                system_prompt += f"Package: {package}\n"
+                
+                if methods:
+                    system_prompt += "Methods:\n"
+                    for method in methods:
+                        system_prompt += f"- {method}\n"
+            
+            system_prompt += "\nIMPORTANT INSTRUCTIONS FOR JAVA CLASSES:\n"
+            system_prompt += "1. Use the correct package names for imports based on the Java class definitions\n"
+            system_prompt += "2. When writing actions, select the appropriate method based on the user's intent:\n"
+            system_prompt += "   - For 'add' operations, use methods starting with 'add'\n"
+            system_prompt += "   - For 'set' operations, use methods starting with 'set'\n"
+            system_prompt += "   - Match the method signature with the appropriate parameters\n"
+            system_prompt += "3. Always place the EmployeeRecommendation instantiation in the conditions section\n"
+        
+        # Add example
+        system_prompt += """
 
 Example:
-User: "Create a staffing rule for restaurants based on total expected sales. If sales are between 0 and 100 dollars, assign 2 employees. If sales are between 100 and 200 dollars, assign 3 employees. If sales are between 200 and 300 dollars, assign 4 employees."
+User: "Create a rule that adds 2 employees when a restaurant has AutoKing and the restaurant size is Large. The rule should have a salience of 90."
 
 Your response should be:
 ```json
 {
-  "tableName": "restaurant-staffing-by-sales",
+  "ruleName": "recommend_extra_staff_for_autoking",
   "packageName": "com.myspace.rules",
   "imports": ["com.myspace.restopsrecomms.RestaurantData", "com.myspace.restopsrecomms.EmployeeRecommendation"],
-  "tableFormat": "EXTENDED_ENTRY",
-  "hitPolicy": "NONE",
-  "version": 1,
-  "attributes": [
-    {
-      "name": "salience",
-      "value": 10,
-      "dataType": "NUMERIC_INTEGER"
-    }
+  "attributes": {
+    "salience": 90
+  },
+  "globals": [],
+  "conditions": [
+    "$restaurant : RestaurantData()",
+    "$restaurant.hasAutoKing == true",
+    "$restaurant.size == \"LARGE\"",
+    "$recommendation : EmployeeRecommendation()"
   ],
-  "conditionPatterns": [
-    {
-      "type": "Pattern",
-      "factType": "RestaurantData",
-      "boundName": "$restaurant",
-      "conditions": [
-        {
-          "header": "Min Sales",
-          "factField": "totalExpectedSales",
-          "operator": ">=",
-          "fieldType": "Double",
-          "hidden": false,
-          "width": 100
-        },
-        {
-          "header": "Max Sales",
-          "factField": "totalExpectedSales",
-          "operator": "<",
-          "fieldType": "Double",
-          "hidden": false,
-          "width": 100
-        }
-      ]
-    }
-  ],
-  "actionColumns": [
-    {
-      "type": "BRLAction",
-      "header": "Employees",
-      "definition": ["$recommendation : EmployeeRecommendation()", "$recommendation.setEmployees(@{Employees})"],
-      "hidden": false
-    }
-  ],
-  "data": [
-    {
-      "rowNumber": 1,
-      "description": "0-100 sales",
-      "values": [
-        {
-          "columnName": "salience",
-          "value": 10,
-          "dataType": "NUMERIC_INTEGER"
-        },
-        {
-          "columnName": "Min Sales",
-          "value": 0.0,
-          "dataType": "NUMERIC_DOUBLE"
-        },
-        {
-          "columnName": "Max Sales",
-          "value": 100.0,
-          "dataType": "NUMERIC_DOUBLE"
-        },
-        {
-          "columnName": "Employees",
-          "value": "2",
-          "dataType": "STRING"
-        }
-      ]
-    },
-    {
-      "rowNumber": 2,
-      "description": "100-200 sales",
-      "values": [
-        {
-          "columnName": "salience",
-          "value": 10,
-          "dataType": "NUMERIC_INTEGER"
-        },
-        {
-          "columnName": "Min Sales",
-          "value": 100.0,
-          "dataType": "NUMERIC_DOUBLE"
-        },
-        {
-          "columnName": "Max Sales",
-          "value": 200.0,
-          "dataType": "NUMERIC_DOUBLE"
-        },
-        {
-          "columnName": "Employees",
-          "value": "3",
-          "dataType": "STRING"
-        }
-      ]
-    },
-    {
-      "rowNumber": 3,
-      "description": "200-300 sales",
-      "values": [
-        {
-          "columnName": "salience",
-          "value": 10,
-          "dataType": "NUMERIC_INTEGER"
-        },
-        {
-          "columnName": "Min Sales",
-          "value": 200.0,
-          "dataType": "NUMERIC_DOUBLE"
-        },
-        {
-          "columnName": "Max Sales",
-          "value": 300.0,
-          "dataType": "NUMERIC_DOUBLE"
-        },
-        {
-          "columnName": "Employees",
-          "value": "4",
-          "dataType": "STRING"
-        }
-      ]
-    }
+  "actions": [
+    "$recommendation.addRestaurantExtraEmployees(2);"
   ]
 }
 ```"""
 
+        return system_prompt
+    
+    def _post_process_drl_json(self, json_data: Dict[str, Any], java_classes_map: Dict[str, Dict] = None) -> Dict[str, Any]:
+        """
+        Post-process the DRL JSON data.
+        
+        Args:
+            json_data (dict): JSON data from LLM
+            java_classes_map (dict): Dictionary mapping class names to package, class name, and methods
+            
+        Returns:
+            dict: Post-processed JSON data
+        """
+        # Update package name from environment variable if available
+        if self.package:
+            json_data["packageName"] = self.package
+        
+        # Update imports based on Java classes if available
+        if java_classes_map:
+            # Track which classes are used in conditions and actions
+            used_classes = set()
+            
+            # Check conditions
+            conditions_str = " ".join(json_data.get("conditions", []))
+            for class_name in java_classes_map:
+                if class_name in conditions_str:
+                    used_classes.add(class_name)
+            
+            # Check actions
+            actions_str = " ".join(json_data.get("actions", []))
+            for class_name in java_classes_map:
+                if class_name in actions_str:
+                    used_classes.add(class_name)
+            
+            # Update imports
+            imports = []
+            for class_name in used_classes:
+                if class_name in java_classes_map:
+                    package = java_classes_map[class_name].get("package", "")
+                    if package:
+                        imports.append(f"{package}.{class_name}")
+            
+            if imports:
+                json_data["imports"] = imports
+        
+        # Ensure EmployeeRecommendation is in conditions
+        conditions = json_data.get("conditions", [])
+        has_employee_recommendation = any("EmployeeRecommendation" in condition for condition in conditions)
+        
+        if not has_employee_recommendation:
+            conditions.append("$recommendation : EmployeeRecommendation()")
+            json_data["conditions"] = conditions
+        
+        return json_data
+    
+    def _extract_gdst_json(self, user_input: str, java_classes_map: Dict[str, Dict] = None) -> Dict[str, Any]:
+        """
+        Extract GDST JSON schema from natural language description.
+        
+        Args:
+            user_input (str): Natural language description of the rule
+            java_classes_map (dict): Dictionary mapping class names to package, class name, and methods
+            
+        Returns:
+            dict: Structured JSON schema for GDST rule
+        """
+        # Prepare the system prompt for GDST extraction using the modular approach
+        system_prompt = self._create_gdst_system_prompt(java_classes_map)
+        
         # Prepare the user prompt
         user_prompt = f"Extract the structured JSON schema for a GDST rule from this description: {user_input}"
         
@@ -448,33 +324,814 @@ Your response should be:
         
         # Extract and parse the JSON response
         json_str = response.choices[0].message.content
-        json_data = json.loads(json_str)
-        
-        # Update package name if Java classes are provided
-        if java_classes_map:
-            # Look for class names in the condition patterns and action columns
-            for class_name, package in java_classes_map.items():
-                # Check if the class is used in condition patterns
-                for pattern in json_data.get("conditionPatterns", []):
-                    if pattern.get("factType") == class_name:
-                        # Update package name and imports
-                        json_data["packageName"] = package.rsplit(".", 1)[0]
-                        
-                        # Add import if not already present
-                        full_class_path = f"{package}.{class_name}"
-                        if full_class_path not in json_data.get("imports", []):
-                            json_data.setdefault("imports", []).append(full_class_path)
+        try:
+            json_data = json.loads(json_str)
+            
+            # Fix key naming if needed - ensure conditionsBRL is used instead of conditionPatterns
+            if "conditionPatterns" in json_data and "conditionsBRL" not in json_data:
+                # Extract BRLCondition entries
+                brl_conditions = []
+                pattern_conditions = []
                 
-                # Check if the class is used in action columns
-                for action in json_data.get("actionColumns", []):
-                    definition_str = " ".join(action.get("definition", []))
-                    if class_name in definition_str:
-                        # Update package name and imports
-                        json_data["packageName"] = package.rsplit(".", 1)[0]
-                        
-                        # Add import if not already present
-                        full_class_path = f"{package}.{class_name}"
-                        if full_class_path not in json_data.get("imports", []):
-                            json_data.setdefault("imports", []).append(full_class_path)
-        
+                # Check if conditionPatterns is a list
+                if isinstance(json_data["conditionPatterns"], list):
+                    for cond in json_data["conditionPatterns"]:
+                        if isinstance(cond, dict) and cond.get("type") == "BRLCondition":
+                            brl_conditions.append(cond)
+                        elif isinstance(cond, dict) and cond.get("type") == "Pattern":
+                            pattern_conditions.append(cond)
+                
+                # Set the correct keys
+                json_data["conditionsBRL"] = brl_conditions
+                if pattern_conditions:
+                    json_data["conditionPatterns"] = pattern_conditions
+                else:
+                    json_data["conditionPatterns"] = []
+                    
+            # Ensure conditionsBRL exists
+            if "conditionsBRL" not in json_data:
+                json_data["conditionsBRL"] = []
+                
+            # Ensure conditionPatterns exists
+            if "conditionPatterns" not in json_data:
+                json_data["conditionPatterns"] = []
+                
+            return json_data
+            
+        except json.JSONDecodeError as e:
+            print(f"Error decoding JSON from LLM: {e}")
+            print(f"Received content: {json_str}")
+            # Return an empty dict or raise an error, depending on desired handling
+            return {}
+            
         return json_data
+
+    def _create_gdst_system_prompt(self, java_classes_map: Dict[str, Dict] = None) -> str:
+        """
+        Create the system prompt for GDST extraction using a modular approach.
+        
+        Args:
+            java_classes_map (dict): Dictionary mapping class names to package, class name, and methods
+            
+        Returns:
+            str: System prompt for GDST extraction
+        """
+        # Combine all prompt sections
+        system_prompt = "You are a specialized AI that extracts structured information from natural language descriptions of Drools rules to create a JSON schema.\n\n"
+        system_prompt += "Your task is to extract ONLY the dynamic elements from the user's description and fill them into a predefined JSON structure for a Drools Guided Decision Table (GDST) file. Follow the instructions precisely.\n\n"
+        system_prompt += "**JSON Schema Structure and Instructions:**\n\n"
+        
+        # Add each section
+        system_prompt += self._create_base_structure_prompt()
+        system_prompt += self._create_brl_condition_prompt()
+        system_prompt += self._create_pattern_condition_prompt()
+        system_prompt += self._create_brl_action_prompt()
+        system_prompt += self._create_data_list_prompt()
+        system_prompt += self._create_guidelines_prompt()
+        
+        # Add Java class information if available
+        if java_classes_map:
+            system_prompt += self._create_java_classes_prompt(java_classes_map)
+        
+        return system_prompt
+    
+    def _create_base_structure_prompt(self) -> str:
+        """
+        Create the prompt section for the base structure.
+        
+        Returns:
+            str: Prompt section for base structure
+        """
+        return f"""**1. Top-Level Structure:**
+```json
+{{
+  "tableName":       "<string of table name>",
+  "packageName":     "<string of package name>",
+  "imports":         [ ... ],
+  "tableFormat":     "EXTENDED_ENTRY",
+  "hitPolicy":       "NONE",
+  "version":         739,
+  "attributes":      [ ... ],
+  "conditionsBRL":   [ ... ],
+  "conditionPatterns": [ ... ],
+  "actionColumns":   [ ... ],
+  "data":            [ ... ]
+}}
+```
+- "tableName" and "packageName" come directly from the user's input. If not provided, infer a suitable tableName and use "{self.package}" for packageName.
+- "imports" must be an array of Java package strings needed by this table. Always include:
+  - Any Java-bean classes referenced in BRLCondition or BRLAction (e.g. com.myspace.restaurant_staffing.RestaurantSales, com.myspace.restaurant_staffing.EmployeeRecommendation).
+  - If any condition or action uses LocalTime or calls .toLocalTime(), LocalTime.parse(...), or similar, you must also include "java.time.LocalTime".
+  - If the user provided additional Java library names in their input, append those here as well.
+- "tableFormat" is always "EXTENDED_ENTRY".
+- "hitPolicy" is always "NONE".
+- "version" is always 739.
+- "attributes" is an array containing exactly two objects in this order:
+  1. {{ "name": "salience", "value": <number>, "dataType": "NUMERIC_INTEGER", "hideColumn": false, "reverseOrder": false, "useRowNumber": false }}
+  2. {{ "name": "enabled", "value": true, "dataType": "BOOLEAN", "hideColumn": true }}
+  - Use the salience value provided by the user. If not provided, use a default of 10.
+  - Always set "enabled": true and "hideColumn": true for that attribute.
+  - Always include "reverseOrder": false and "useRowNumber": false for the salience attribute.
+
+"""
+    
+    def _create_brl_condition_prompt(self) -> str:
+        """
+        Create the prompt section for BRL conditions.
+        
+        Returns:
+            str: Prompt section for BRL conditions
+        """
+        return """**2. BRLConditionColumn:**
+You must always create two BRLCondition entries for binding the requisite Java bean instances. Additionally, when a user provides a complex expression (e.g., eval(...)) or free form condition, you must include a BRLCondition entry in conditionsBRL.
+
+IMPORTANT: All BRLCondition entries MUST be placed in the "conditionsBRL" array, NOT in "conditionPatterns".
+
+*   **EmployeeRecommendation binding (Required):**
+    ```json
+    {
+      "type": "BRLCondition",
+      "width": -1,
+      "header": "Employee Recommendation",
+      "hidden": false,
+      "constraintValueType": 1,
+      "parameters": "",
+      "definition": [
+        {"text": "recommendation : EmployeeRecommendation()"}
+      ],
+      "childColumns": {
+        "BRLConditionVariableColumn": {
+          "typedDefaultValue": { "valueBoolean": true, "valueString": "", "dataType": "BOOLEAN", "isOtherwise": false },
+          "hideColumn": true,
+          "width": 100,
+          "header": "Employee Recommendation",
+          "constraintValueType": 1,
+          "fieldType": "Boolean",
+          "parameters": "",
+          "varName": "recommendation"
+        }
+      }
+    }
+    ```
+*   **RestaurantData binding (Required):**
+    ```json
+    {
+      "type": "BRLCondition",
+      "width": -1,
+      "header": "Restaurant Data",
+      "hidden": false,
+      "constraintValueType": 1,
+      "parameters": "",
+      "definition": [
+         {"text": "restaurantData : RestaurantData()"}
+      ],
+      "childColumns": {
+        "BRLConditionVariableColumn": {
+          "typedDefaultValue": { "valueBoolean": true, "valueString": "", "dataType": "BOOLEAN", "isOtherwise": false },
+          "hideColumn": true,
+          "width": 100,
+          "header": "Restaurant Data",
+          "constraintValueType": 1,
+          "fieldType": "Boolean",
+          "parameters": "",
+          "varName": "restaurantData"
+        }
+      }
+    }
+    ```
+*   **Complex BRL Condition (Optional - Use for eval/free-form):**
+    ```json
+    {
+      "type": "BRLCondition",
+      "width": -1,
+      "header": "<a short description of what this Boolean test does>",
+      "hidden": false,
+      "constraintValueType": 1,
+      "parameters": "",
+      "definition": [
+        {"text": "eval(<YOUR_BOOLEAN_EXPRESSION_HERE>)"}
+      ],
+      "childColumns": {
+        "BRLConditionVariableColumn": {
+          "typedDefaultValue": {
+            "valueBoolean": true,
+            "valueString": "",
+            "dataType": "BOOLEAN",
+            "isOtherwise": false
+          },
+          "hideColumn": false,
+          "width": 100,
+          "header": "<a name that describes this test in human-readable form>",
+          "constraintValueType": 1,
+          "fieldType": "Boolean",
+          "parameters": "",
+          "varName": "<VARIABLE_NAME>"
+        }
+      }
+    }
+    ```
+    - **Field Explanations:**
+      - `type`: Always set "type": "BRLCondition".
+      - `width`, `hidden`, `constraintValueType`, `parameters`: Always use exactly "width": -1, "hidden": false, "constraintValueType": 1, and "parameters": "".
+      - `header`: Fill in a brief description of what this condition does.
+      - `definition.text`: Must start with eval( and end with )—the entire Boolean expression goes inside. use resturantData binding when calling getter method ex. eval(restaurantData.getCalculationDateTime().toLocalTime() &gt;= LocalTime.parse(&quot;@{targetTime}&quot;))
+      - `childColumns.BRLConditionVariableColumn`: Always include a single BRLConditionVariableColumn with appropriate typedDefaultValue.
+      - `varName`: Must match exactly any placeholder used inside your eval(...) string. If no placeholder is used, choose any meaningful varName.
+
+"""
+    
+    def _create_pattern_condition_prompt(self) -> str:
+        """
+        Create the prompt section for pattern conditions.
+        
+        Returns:
+            str: Prompt section for pattern conditions
+        """
+        return """**3. Pattern Conditions:**
+Whenever you need to create a "Pattern" entry (i.e., a standard Drools Pattern52 for a POJO's property constraints), follow this exact JSON schema and fill in each field according to the user's description:
+```json
+{
+  "type": "Pattern",
+  "factType": "<Java-bean/class name>",
+  "boundName": "<same as factType>",
+  "isNegated": false,
+  "conditions": [
+    {
+      "typedDefaultValue": {
+        "valueString": "<always include this tag; leave empty unless user gave a default>",
+        "valueNumeric": {
+          "class": "<\"int\" or \"double\", matching fieldType>",
+          "value": "<omit this object entirely if no default, otherwise put e.g. 1 or 3.14>"
+        },
+        "valueBoolean": "<omit if no default, otherwise true or false>",
+        "dataType": "<exact Drools dataType for this field: \"NUMERIC_INTEGER\", \"NUMERIC_DOUBLE\", \"STRING\" or \"BOOLEAN\">",
+        "isOtherwise": false
+      },
+      "header": "<column header text describing the condition operator")>",
+      "constraintValueType": 1,
+      "factField": "<exact Java-bean property name (e.g. \"totalExpectedSales\")>",
+      "operator": "<one of \"&lt;=\", \"&gt;=\", \"&lt;\", \"&gt;\", \"==\">",
+      "fieldType": "<Java property type: e.g. \"Double\", \"Integer\", \"String\", or \"Boolean\">",
+      "hidden": false,
+      "width": 100,
+      "parameters": "",
+      "binding": ""
+    }
+  ],
+  "window": {
+    "parameters": ""
+  }
+}
+```
+- **IMPORTANT GUIDELINES:**
+  1. Range Conditions (Two Operators)
+    - Rule: Whenever a user describes a numeric “range” (e.g. “sales between 0 and 100,” “sales between 100 and 200,” etc.), you must emit exactly one Pattern object for that factType/property.
+    - Inside that Pattern: include two "conditions" entries:
+      a. One with "operator": ">="
+      b. One with "operator": "<"
+    - Do not repeat the Pattern for each possible numeric interval. Keep one Pattern per “property” that uses both operators.
+    - Leave every typedDefaultValue empty (valueNumeric/valueString fields as null or empty) so that specific numbers will be filled in later by data rows.
+    - Example → Range Condition for totalExpectedSales on RestaurantSales:
+```json
+{
+  "type": "Pattern",
+  "factType": "RestaurantSales",
+  "boundName": "RestaurantSales",
+  "isNegated": false,
+  "conditions": [
+    {
+      "typedDefaultValue": {
+        "valueNumeric": null,
+        "valueString": "",
+        "dataType": "NUMERIC_DOUBLE",
+        "isOtherwise": false
+      },
+      "header": "Max Sales",
+      "factField": "dailySales",
+      "operator": "<",
+      "fieldType": "Double",
+      "hidden": false,
+      "width": 100,
+      "parameters": {},
+      "binding": ""
+    },
+    {
+      "typedDefaultValue": {
+        "valueNumeric": null,
+        "valueString": "",
+        "dataType": "NUMERIC_DOUBLE",
+        "isOtherwise": false
+      },
+      "header": "Min Sales",
+      "factField": "dailySales",
+      "operator": ">=",
+      "fieldType": "Double",
+      "hidden": false,
+      "width": 100,
+      "parameters": {},
+      "binding": ""
+    }
+  ],
+  "window": {
+    "parameters": {}
+  }
+}
+```
+    - In this JSON, there is one Pattern for “dailySales” with two conditions (>= and <), and both valueNumeric fields are left null/empty. Do not create separate Patterns for “0–100,” “100–200,” etc.
+  2. Single‐Operator Conditions (Equality or Other Single Operators)
+    - Rule: Whenever a user describes a condition with exactly one operator (e.g. “restaurantSize == X,” “employeeCount > Y,” “status != ‘Closed’”), you must emit exactly one Pattern object containing a single "conditions" entry.
+    - Leave its typedDefaultValue empty so that each data row can fill in the actual value (e.g. “S,” “M,” “L,” or any other literal).
+    - Do not repeat this Pattern for every distinct literal; keep it generic with an empty value placeholder.
+    - Example → Equality Condition for restaurantSize on RestaurantData:
+```json
+{
+  "type": "Pattern",
+  "factType": "RestaurantData",
+  "boundName": "RestaurantData",
+  "isNegated": false,
+  "conditions": [
+    {
+      "header": "Size",
+      "factField": "restaurantSize",
+      "operator": "==",
+      "fieldType": "String",
+      "hidden": false,
+      "width": 100,
+      "parameters": {},
+      "binding": "",
+      "typedDefaultValue": {
+        "valueString": "",
+        "dataType": "STRING",
+        "isOtherwise": false
+      }
+    }
+  ],
+  "window": {
+    "parameters": {}
+  }
+}
+```
+    - Here, there is one Pattern for “restaurantSize == …” with valueString left empty. Do not output separate Patterns for “== S,” “== M,” “== L.” Each row’s data will supply "valueString": "S" or "M" or "L" later.
+    
+- **Field Explanations:**
+  - `type`: Always hard-code "type": "Pattern" for any fact-field constraint.
+  - `factType` and `boundName`: Use the name of the Java class whose fields you are constraining. Typically both are the same.
+  - `isNegated`: Leave as false unless the user explicitly asks "negate this pattern."
+  - `conditions`: Each element corresponds to one condition-column52 in the guided decision table.
+  - `typedDefaultValue`: ALWAYS include this object with all its fields for EVERY condition:
+    - valueString: Always include this tag. If the user did not supply a default, set it to "".
+    - valueNumeric: Include this object if the fieldType is numeric, with appropriate class and value.
+    - valueBoolean: Include this if the fieldType is Boolean, otherwise omit.
+    - dataType: Must be one of "NUMERIC_INTEGER", "NUMERIC_DOUBLE", "STRING", or "BOOLEAN" matching the Java field's type.
+    - isOtherwise: Always set to false unless the user specifically asks for an otherwise clause.
+  - `header`: The visible column header label (e.g. "Min Sales" or "Max Sales").
+  - `constraintValueType`: Always 1 for a simple field-comparison column.
+  - `factField`: The exact Java-bean property name you are comparing against.
+  - `operator`: One of '&lt;=', '&gt;=', '&lt;', '&gt;', or '=='.
+  - `fieldType`: Must match the Java type of that factField (e.g., "Double", "Integer", "String", "Boolean").
+  - `hidden`, `width`, `parameters`, `binding`: Usually set to false, 100, "", and "" respectively unless specified otherwise.
+  - `window`: Always "window": { "parameters": "" } unless the user specifically asks for a sliding window or timed window.
+
+"""
+    
+    def _create_brl_action_prompt(self) -> str:
+        """
+        Create the prompt section for BRL actions.
+        
+        Returns:
+            str: Prompt section for BRL actions
+        """
+        return """**4. BRLActionColumn:**
+```json
+{
+  "actionColumns": [
+    {
+      "type": "BRLAction",
+      "width": 100,
+      "header": "<column header text describing action or property, e.g. \"Employee Count\">",
+      "hidden": false,
+      "definition": [
+        {"text": "<the DRL/Java snippet to invoke on your recommendation object—always include \"@{varName}\" for the argument. For example: \"recommendation.addRestaurantEmployees(@{count})\". >"}
+      ],
+      "childColumns": {
+        "BRLActionVariableColumn": {
+          "typedDefaultValue": {
+            "valueString": "<if your method takes a String and you want a default, put it here; otherwise \"\">",
+            "valueNumeric": {
+              "class": "<\"int\" or \"double\" depending on your Java-bean method's parameter type>",
+              "value": "<numeric default literal if any, e.g. 0 or 0.0, or omit this entire object if none>"
+            },
+            "valueBoolean": "<true or false only if your method's parameter type is Boolean and you want a default; otherwise omit>",
+            "dataType": "<the Drools dataType matching the argument: \"NUMERIC_INTEGER\" if your method expects an int, \"NUMERIC_DOUBLE\" if double, \"STRING\" if String, or \"BOOLEAN\" if Boolean>",
+            "isOtherwise": false
+          },
+          "hidden": false,
+          "width": 100,
+          "header": "<any visible header, e.g. \"Restaurant Employees\" or \"Delivery Employees\">",
+          "varName": "<this must exactly match the token you used inside definition's \"@{…}\". For example, if your definition text is \"recommendation.addRestaurantEmployees(@{count})\", then varName must be \"count\">",
+          "fieldType": "<the Java type of the argument: \"Integer\", \"Double\", \"String\", or \"Boolean\">"
+        }
+      }
+    }
+  ]
+}
+```
+- **Field Explanations:**
+  - `type`: Always set "type": "BRLAction" when defining a Free-Form action on a DRL fact via a Java-bean method call.
+  - `width`: The column's width in the guided decision table. Use 100 by default.
+  - `header`: The visible label for this action column.
+  - `hidden`: Use false unless the user explicitly wants to hide this column.
+  - `definition.text`: Must contain exactly the DRL/Java snippet you want to execute, with "@{varName}" for the argument.
+  - `childColumns.BRLActionVariableColumn`: This defines the column that holds the value to plug into @{...}.
+  - `typedDefaultValue`: ALWAYS include this object with all its fields for EVERY action:
+    - valueString: Always include this tag. If the argument type is String and you want a default, put it here. Otherwise set to "".
+    - valueNumeric: Include this object if your Java-bean method takes an int or double.
+    - valueBoolean: Include this if your method's parameter is a Boolean and you want a default. Otherwise omit.
+    - dataType: Exactly the Drools type that corresponds to your method argument.
+    - isOtherwise: Always set to false unless the user specifically asked for an otherwise row.
+  - `varName`: Must be exactly the name you used inside definition.text (@{varName}).
+  - `fieldType`: Exactly the Java type of the method's single parameter.
+
+**Examples for different data types:**
+
+**Integer Example:**
+```json
+{
+  "actionColumns": [
+    {
+      "type": "BRLAction",
+      "width": 100,
+      "header": "Employee Count",
+      "hidden": false,
+      "definition": [
+        {"text": "recommendation.addRestaurantEmployees(@{count})"}
+      ],
+      "childColumns": {
+        "BRLActionVariableColumn": {
+          "typedDefaultValue": {
+            "valueString": "",
+            "valueNumeric": {
+              "class": "int",
+              "value": 0
+            },
+            "dataType": "NUMERIC_INTEGER",
+            "isOtherwise": false
+          },
+          "hidden": false,
+          "width": 100,
+          "header": "Restaurant Employees",
+          "varName": "count",
+          "fieldType": "Integer"
+        }
+      }
+    }
+  ]
+}
+```
+
+**String Example:**
+```json
+{
+  "actionColumns": [
+    {
+      "type": "BRLAction",
+      "width": 100,
+      "header": "Description",
+      "hidden": false,
+      "definition": [
+        {"text": "recommendation.setDescription(@{desc})"}
+      ],
+      "childColumns": {
+        "BRLActionVariableColumn": {
+          "typedDefaultValue": {
+            "valueString": "",
+            "dataType": "STRING",
+            "isOtherwise": false
+          },
+          "hidden": false,
+          "width": 100,
+          "header": "Description",
+          "varName": "desc",
+          "fieldType": "String"
+        }
+      }
+    }
+  ]
+}
+```
+
+**Boolean Example:**
+```json
+{
+  "actionColumns": [
+    {
+      "type": "BRLAction",
+      "width": 100,
+      "header": "Enable Promotion",
+      "hidden": false,
+      "definition": [
+        {"text": "recommendation.enablePromo(@{flag})"}
+      ],
+      "childColumns": {
+        "BRLActionVariableColumn": {
+          "typedDefaultValue": {
+            "valueBoolean": false,
+            "valueString": "",
+            "dataType": "BOOLEAN",
+            "isOtherwise": false
+          },
+          "hidden": false,
+          "width": 100,
+          "header": "Enable Promotion",
+          "varName": "flag",
+          "fieldType": "Boolean"
+        }
+      }
+    }
+  ]
+}
+```
+
+**Key takeaways:**
+- The top-level must read "type": "BRLAction".
+- definition.text is the exact Java/Drl call. Use @{varName} inside parentheses.
+- The child column must be "BRLActionVariableColumn" with typedDefaultValue and the proper Drools dataType.
+- varName must match exactly the name inside @{...}.
+- fieldType must match the Java method's single parameter type.
+- Include valueNumeric with appropriate class for numeric types, valueString for strings, and valueBoolean for booleans.
+- Always include "dataType" exactly as "NUMERIC_INTEGER", "NUMERIC_DOUBLE", "STRING", or "BOOLEAN".
+
+"""
+    
+    def _create_data_list_prompt(self) -> str:
+        """
+        Create the prompt section for data lists.
+        
+        Returns:
+            str: Prompt section for data lists
+        """
+        return """**5. Data List:**
+Produce a "data" array where each element represents one decision-table row. Each row object must contain:
+1. "rowNumber" (an integer),
+2. "description" (a human-readable string for that row), and
+3. "values" (an ordered list of column-value objects).
+
+Important: Within "values", preserve this exact sequence for every row:
+1. salience column
+2. recommendation binding (the BRLConditionVariableColumn that binds EmployeeRecommendation)
+3. restaurantData binding (the BRLConditionVariableColumn that binds RestaurantData)
+4. pattern-based conditions (one entry per condition-column52 under your Pattern52, in the same order they appear in your table)
+5. complex BRLCondition expressions (if any—i.e. any FreeFormLine/EVAL statements)
+6. action variables (one entry per BRLActionVariableColumn, in the same order they appear under actionCols)
+
+Below is a template for a single row. Copy this structure exactly and fill in each "columnName", "value", and "dataType" according to the user's rule:
+```json
+{
+  "data": [
+    {
+      "rowNumber": "<integer – the row's index, e.g. 1, 2, 3...>",
+      "description": "<string – human-readable description of this rule row>",
+      "values": [
+        // 1) salience
+        {
+          "columnName": "salience",
+          "value": "<int, e.g. 100>",
+          "dataType": "NUMERIC_INTEGER"
+        },
+
+        // 2) recommendation binding (BRLConditionVariableColumn for EmployeeRecommendation)
+        {
+          "columnName": "recommendation",
+          "value": "<boolean, usually true if this rule applies>",
+          "dataType": "BOOLEAN"
+        },
+
+        // 3) restaurantData binding (BRLConditionVariableColumn for RestaurantData)
+        {
+          "columnName": "restaurantData",
+          "value": "<boolean, usually true>",
+          "dataType": "BOOLEAN"
+        },
+
+        // 4) Pattern52 conditions, in the same order as defined under conditionPatterns
+        //    Example: if your Pattern52 has two condition columns "Max Sales" and "Min Sales":
+        {
+          "columnName": "Max Sales",
+          "value": "<number or empty>",
+          "dataType": "NUMERIC_DOUBLE"
+        },
+        {
+          "columnName": "Min Sales",
+          "value": "<number or empty>",
+          "dataType": "NUMERIC_DOUBLE"
+        },
+
+        // 5) Any complex BRLCondition expressions (FreeFormLine/EVAL). If none, omit this block.
+        //    Example: for an even-check on dailySales:
+        {
+          "columnName": "evenDailySalesCheck",
+          "value": "<boolean, true or false>",
+          "dataType": "BOOLEAN"
+        },
+
+        // 6) BRLActionVariableColumn values, in the same order as under actionCols
+        {
+          "columnName": "count",
+          "value": "<integer, e.g. 2>",
+          "dataType": "NUMERIC_INTEGER"
+        }
+      ]
+    }
+    // ...repeat one object per row...
+  ]
+}
+```
+
+**Field-by-Field Guidance:**
+1. "rowNumber": Set to the sequential row index (1, 2, 3, ...).
+2. "description": A short label for humans (e.g. "0–100 sales").
+3. "values" (array must follow exactly this order):
+   - salience: "columnName": "salience", "value": an integer (e.g. 100), "dataType": "NUMERIC_INTEGER"
+   - recommendation binding: "columnName": "recommendation", "value": true/false (in practice, always true if you want that rule to fire), "dataType": "BOOLEAN"
+   - restaurantData binding: "columnName": "restaurantData", "value": true/false (usually true), "dataType": "BOOLEAN"
+   - pattern-based conditions: One object per Pattern52 condition-column52, in the order they were defined
+   - complex BRLCondition expressions: Include if the row uses a FreeFormLine/EVAL clause
+   - action variable values: One object per BRLActionVariableColumn, in the same order
+
+**Example Filling:**
+Suppose you have a rule table where:
+- salience = 10
+- BRLConditionVariableColumn "recommendation" → always true
+- BRLConditionVariableColumn "restaurantData" → always true
+- Pattern52 has condition-column52 "Max Sales (≤100.0)" and "Min Sales (>0.0)"
+- No additional FreeFormLine/EVAL
+- One action "count" (Integer) = 2
+
+Then one row's JSON entry becomes:
+```json
+{
+  "rowNumber": 1,
+  "description": "0–100 sales",
+  "values": [
+    {
+      "columnName": "salience",
+      "value": 10,
+      "dataType": "NUMERIC_INTEGER"
+    },
+    {
+      "columnName": "recommendation",
+      "value": true,
+      "dataType": "BOOLEAN"
+    },
+    {
+      "columnName": "restaurantData",
+      "value": true,
+      "dataType": "BOOLEAN"
+    },
+    {
+      "columnName": "Max Sales",
+      "value": 100.0,
+      "dataType": "NUMERIC_DOUBLE"
+    },
+    {
+      "columnName": "Min Sales",
+      "value": 0.0,
+      "dataType": "NUMERIC_DOUBLE"
+    },
+    {
+      "columnName": "count",
+      "value": 2,
+      "dataType": "NUMERIC_INTEGER"
+    }
+  ]
+}
+```
+
+If you do have a FreeFormLine/EVAL for "even dailySales," insert it just before the "count" block:
+```json
+{
+  "rowNumber": 2,
+  "description": "Even-check on dailySales",
+  "values": [
+    {
+      "columnName": "salience",
+      "value": 20,
+      "dataType": "NUMERIC_INTEGER"
+    },
+    {
+      "columnName": "recommendation",
+      "value": true,
+      "dataType": "BOOLEAN"
+    },
+    {
+      "columnName": "restaurantData",
+      "value": true,
+      "dataType": "BOOLEAN"
+    },
+    {
+      "columnName": "Max Sales",
+      "value": 200.0,
+      "dataType": "NUMERIC_DOUBLE"
+    },
+    {
+      "columnName": "Min Sales",
+      "value": 100.0,
+      "dataType": "NUMERIC_DOUBLE"
+    },
+    {
+      "columnName": "evenDailySalesCheck",
+      "value": true,
+      "dataType": "BOOLEAN"
+    },
+    {
+      "columnName": "count",
+      "value": 4,
+      "dataType": "NUMERIC_INTEGER"
+    }
+  ]
+}
+```
+
+"""
+    
+    def _create_guidelines_prompt(self) -> str:
+        """
+        Create the prompt section for general guidelines.
+        
+        Returns:
+            str: Prompt section for general guidelines
+        """
+        return """**IMPORTANT GUIDELINES:**
+1. Extract ONLY the dynamic elements mentioned in the user's description such as conditions, actions, salience, and rule name (if provided). 
+2. For any fields not explicitly mentioned from user input, use the default provided as described in above JSON schema.
+4. For each range mentioned, create a corresponding data row with the appropriate values
+
+5. ALWAYS include the following in your JSON output:
+   - The 'enabled' attribute with value=true, dataType=BOOLEAN, and hideColumn=true
+   - Two BRLCondition entries: one for EmployeeRecommendation and one for RestaurantData
+   - Include typedDefaultValue for all columns with appropriate default values
+   - For salience attribute, always include reverseOrder=false and useRowNumber=false
+   - DO NOT include a value for the enabled attribute in the data rows
+
+6. CRITICAL SCHEMA REQUIREMENTS:
+   - All BRLCondition entries MUST be placed in the "conditionsBRL" array, NOT in "conditionPatterns"
+   - Pattern entries MUST be placed in the "conditionPatterns" array
+   - EVERY condition and action column MUST include a "typedDefaultValue" object with appropriate fields
+
+**WHEN TO USE CONDITION PATTERNS VS BRL CONDITIONS:**
+- Use conditionPatterns when:
+  * Simple field constraints are needed (e.g., field == value)
+  * Basic comparison operators are sufficient (==, !=, >, <, >=, <=)
+  * No complex expressions or method calls are required
+  * No multiple variable binding in one condition
+
+- Use conditionsBRL when:
+  * Complex expressions are needed
+  * Method calls are required
+  * Multiple variables need to be bound in one condition
+  * Custom evaluations or calculations are needed
+  * For EmployeeRecommendation, RestaurantData or any Java-bean instantiation (ALWAYS put this in conditionsBRL)
+
+7. Return ONLY the JSON object, nothing else
+
+"""
+    
+    def _create_java_classes_prompt(self, java_classes_map: Dict[str, Dict]) -> str:
+        """
+        Create the prompt section for Java classes.
+        
+        Args:
+            java_classes_map (dict): Dictionary mapping class names to package, class name, and methods
+            
+        Returns:
+            str: Prompt section for Java classes
+        """
+        java_classes_prompt = "\n\n**Java Class Information:**\n"
+        java_classes_prompt += "You have access to the following Java class definitions:\n"
+        
+        for class_name, class_info in java_classes_map.items():
+            package = class_info.get("package", "")
+            methods = class_info.get("methods", [])
+            fields = class_info.get("fields", [])
+            
+            java_classes_prompt += f"\nClass: {class_name}\n"
+            java_classes_prompt += f"Package: {package}\n"
+            
+            if fields:
+                java_classes_prompt += "Fields:\n"
+                for field in fields:
+                    java_classes_prompt += f"- {field}\n"
+            
+            if methods:
+                java_classes_prompt += "Methods:\n"
+                for method in methods:
+                    java_classes_prompt += f"- {method}\n"
+        
+        java_classes_prompt += "\n**IMPORTANT INSTRUCTIONS FOR JAVA CLASSES:**\n"
+        java_classes_prompt += "1. Use the correct package names for imports based on the Java class definitions\n"
+        java_classes_prompt += "2. When writing actions, select the appropriate method based on the user's intent:\n"
+        java_classes_prompt += "   - For 'add' operations, use methods starting with 'add'\n"
+        java_classes_prompt += "   - For 'set' operations, use methods starting with 'set'\n"
+        java_classes_prompt += "   - Match the method signature with the appropriate parameters\n"
+        
+        return java_classes_prompt

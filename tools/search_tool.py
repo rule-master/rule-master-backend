@@ -333,7 +333,7 @@ def search_rules(query: str, rules_dir: str, api_key: str) -> Dict[str, any]:
                     logger.warning("Missing both rule_name and source in payload")
                     continue
 
-                # Get content from the file if not in payload
+                # Get content from payload first, then try file
                 content = payload.get("content")
                 if not content:
                     # Try to read the file content
@@ -344,7 +344,15 @@ def search_rules(query: str, rules_dir: str, api_key: str) -> Dict[str, any]:
                                 content = f.read()
                         else:
                             logger.warning(f"File not found for rule: {rule_name}")
-                            continue
+                            # If file not found but we have other metadata, still include the rule
+                            if (
+                                payload.get("type")
+                                or payload.get("format")
+                                or payload.get("title")
+                            ):
+                                content = f"Rule file not found: {rule_name}"
+                            else:
+                                continue
                     except Exception as e:
                         logger.warning(
                             f"Error reading file for rule {rule_name}: {str(e)}"

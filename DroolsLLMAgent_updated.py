@@ -77,31 +77,72 @@ class DroolsLLMAgent:
         Set up the system prompt for the LLM.
         """
         logger.debug("Setting up system prompt")
+        java_classes_map = self.java_classes_map
         system_content = """
-        You are a Drools rule assistant that helps users create, search, edit, and delete Drools rules.
+        You are a Drools rule assistant that helps users create, search, edit, and delete Drools rules in a natural, conversational way. 
         
-        Analyze user requests carefully to determine their intent. Based on the intent, call the appropriate function:
+        Analyze user requests carefully to determine their intent. Based on the intent, call the appropriate function: 
         
-        - When users want to create a rule, call the add_rule function
-        - When users want to modify a rule, call the edit_rule function
-        - When users want to delete a rule, call the delete_rule function
-        - When users want to find or list rules, call the search_rules function
+        - When users want to add or create a rule, call the add_rule function.
+        - When users want to modify, update, edit, or change a rule, call the edit_rule function.
+        - When users want to delete or remove a rule, call the delete_rule function.
+        - When users want to search, find, or list rules, call the search_rules function.
         
-        For rule creation, determine whether to create a DRL file or GDST file based on the complexity:
-        - Use DRL for simple rules with a few conditions and actions
-        - Use GDST for rules with multiple similar conditions or actions, especially those involving ranges or thresholds
+        When user wants to add a new rule:
+        - Mapping user language to facts, fields, and actions: 
+            > Facts are the objects you are reasoning about, like 'restaurant data' or 'employee recommendation'.
+            > Fields are the attributes of those facts, like 'restaurant size' or 'expected total sales'.
+            > Actions are what you want to do with the facts, like 'add employees' or 'set extra employees'.
+        - Before you transform their request, identify each condition and action in plain English, then map it to the exact Java-bean property or method.
+        - If you're not certain which field or method to use (for example, "sales" could mean `totalExpectedSales` or `timeSlotExpectedSales`), politely ask for clarification:
+        > "Just to confirm, when you say 'sales', do you mean the restaurant's **total expected sales** or the **time slot expected sales**?"
+        - Likewise for actions: for example, if the user says assign, add, or set 6 employees" and EmployeeRecommendation class has different methods like `addRestaurantEmployees`, `addRestaurantExtraEmployees`, `setRestaurantEmployees`, and `setRestaurantExtraEmployees`, and you are not certain which method to use, ask:  
+        > "Would you like to use **add restaurant employees** or **add restaurant extra employees**, or should we **set the employees count instead**?"
+        - you must capture rule's salience/priority. If the user does not provide a salience, you should ask for it.
+        > e.g. "Just to confirm, what priority should I assign to this rule? The higher the number, the higher the priority. For example, if you want this rule to be executed before others, you can assign a higher number like 100. If you want it to be executed after others, you can assign a lower number like 1. If you don't have a specific priority in mind, I can assign a default priority of 50."
+        - If you captured all the necessary information (even from 1st user input or first followup), don't clarify anything else or ask for user confirmation to call the function, just call it.
+        - Send final refined user intent in natural language to the add function not in JSON format.
         
-        Always respond in a helpful, conversational manner.
+        Call the appropriate function once you have all the necessary information. 
+        
+        When clarifying user input or requesting additional information, use the following phrases: "do you mean", "which", "could you", "please clarify", "which one", "Just to confirm".
+        
+        Always respond in a helpful, conversational manner. 
+        
         """
+        java_classes_prompt = "\n**Java Class Information:**\n"
+        java_classes_prompt += (
+            "You have access to the following Java class definitions:\n"
+        )
+
+        for class_name, class_info in java_classes_map.items():
+            package = class_info.get("package", "")
+            methods = class_info.get("methods", [])
+            fields = class_info.get("fields", [])
+
+            java_classes_prompt += f"\nClass: {class_name}\n"
+            java_classes_prompt += f"Package: {package}\n"
+
+            if fields:
+                java_classes_prompt += "Fields:\n"
+                for field in fields:
+                    java_classes_prompt += f"- {field}\n"
+
+            if methods:
+                java_classes_prompt += "Methods:\n"
+                for method in methods:
+                    java_classes_prompt += f"- {method}\n"
+
+        system_content += java_classes_prompt
         self.messages.append({"role": "system", "content": system_content})
         logger.debug("System prompt added to messages")
 
     def _load_java_classes(self):
         """
-        Load Java classes and their package names.
+        Load Java classes and their package, class name, and methods.
 
         Returns:
-            dict: Dictionary mapping class names to package names
+            dict: Dictionary mapping class names to package, class name, and methods
         """
         try:
             # Import the map_java_classes function
@@ -110,16 +151,70 @@ class DroolsLLMAgent:
             if not self.java_dir or not os.path.exists(self.java_dir):
                 # Default mapping if Java directory not available
                 return {
-                    "RestaurantData": "com.capstonespace.resopsrecomms",
-                    "EmployeeRecommendation": "com.capstonespace.resopsrecomms",
+                    "RestaurantData": {
+                        "package": "com.myspace.resopsrecomms",
+                        "methods": [
+                            "getRestaurantSize()",
+                            "getTotalExpectedSales()",
+                            "getTimeSlotExpectedSales()",
+                            "getCurrentEmployees()",
+                            "getExtraEmployees()",
+                        ],
+                        "fields": [
+                            "restaurantSize",
+                            "totalExpectedSales",
+                            "timeSlotExpectedSales",
+                            "currentEmployees",
+                            "extraEmployees",
+                        ],
+                    },
+                    "EmployeeRecommendation": {
+                        "package": "com.myspace.resopsrecomms",
+                        "methods": [
+                            "addRestaurantEmployees(int count)",
+                            "addRestaurantExtraEmployees(int count)",
+                            "setRestaurantEmployees(int count)",
+                            "setRestaurantExtraEmployees(int count)",
+                            "getRequiredEmployees()",
+                            "getExtraEmployees()",
+                        ],
+                        "fields": ["requiredEmployees", "extraEmployees"],
+                    },
                 }
 
             return parse_java_classes(self.java_dir)
         except ImportError:
             # If the module is not available, return default mapping
             return {
-                "RestaurantData": "com.capstonespace.resopsrecomms",
-                "EmployeeRecommendation": "com.capstonespace.resopsrecomms",
+                "RestaurantData": {
+                    "package": "com.myspace.resopsrecomms",
+                    "methods": [
+                        "getRestaurantSize()",
+                        "getTotalExpectedSales()",
+                        "getTimeSlotExpectedSales()",
+                        "getCurrentEmployees()",
+                        "getExtraEmployees()",
+                    ],
+                    "fields": [
+                        "restaurantSize",
+                        "totalExpectedSales",
+                        "timeSlotExpectedSales",
+                        "currentEmployees",
+                        "extraEmployees",
+                    ],
+                },
+                "EmployeeRecommendation": {
+                    "package": "com.myspace.resopsrecomms",
+                    "methods": [
+                        "addRestaurantEmployees(int count)",
+                        "addRestaurantExtraEmployees(int count)",
+                        "setRestaurantEmployees(int count)",
+                        "setRestaurantExtraEmployees(int count)",
+                        "getRequiredEmployees()",
+                        "getExtraEmployees()",
+                    ],
+                    "fields": ["requiredEmployees", "extraEmployees"],
+                },
             }
 
     @log_decorator("handle_message")
@@ -133,64 +228,85 @@ class DroolsLLMAgent:
         Returns:
             str: Agent response
         """
+        print(">> RAW USER INPUT:", user_input)
+        # Add user message to conversation
+        self.messages.append({"role": "user", "content": user_input})
+
+        # Define available functions
+        functions = self._get_function_definitions()
+
         try:
-            # Add user message to conversation
-            self.messages.append({"role": "user", "content": user_input})
-            logger.debug("User message added to conversation history")
 
-            # Define available functions
-            functions = self._get_function_definitions()
-            logger.debug(f"Available functions: {[f['name'] for f in functions]}")
+            while True:
 
-            # Call OpenAI with function definitions
-            logger.debug("Calling OpenAI API for completion")
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=self.messages,
-                functions=functions,
-                function_call="auto",
-            )
-            logger.debug("Received response from OpenAI")
-
-            # Extract the message
-            message = response.choices[0].message
-            logger.debug(f"Message role: {message.role}")
-
-            # Handle function calls if present
-            if message.function_call:
-                logger.info(f"Function call detected: {message.function_call.name}")
-                function_response = self._handle_function_call(message.function_call)
-                logger.debug(
-                    f"Function response: {json.dumps(function_response)[:200]}..."
+                # Call OpenAI with function definitions
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=self.messages,
+                    functions=functions,
+                    function_call="auto",
                 )
 
-                # Add function call and response to conversation
-                self.messages.append(
-                    {
-                        "role": "assistant",
-                        "content": None,
-                        "function_call": {
+                # Extract the message
+                message = response.choices[0].message
+
+                # Handle function calls if present
+                if message.function_call:
+                    print(f">> ASSISTANT WANTS TO CALL: {message.function_call.name}")
+                    print(">> WITH ARGUMENTS:", message.function_call.arguments)
+
+                    function_response = self._handle_function_call(
+                        message.function_call
+                    )
+
+                    # Add function call and response to conversation
+                    self.messages.append(
+                        {
+                            "role": "assistant",
+                            "content": None,
+                            "function_call": {
+                                "name": message.function_call.name,
+                                "arguments": message.function_call.arguments,
+                            },
+                        }
+                    )
+                    self.messages.append(
+                        {
+                            "role": "function",
                             "name": message.function_call.name,
-                            "arguments": message.function_call.arguments,
-                        },
-                    }
-                )
-                self.messages.append(
-                    {
-                        "role": "function",
-                        "name": message.function_call.name,
-                        "content": json.dumps(function_response),
-                    }
-                )
-                logger.debug("Function call and response added to conversation history")
+                            "content": json.dumps(function_response),
+                        }
+                    )
 
-                # Get final response from LLM
-                logger.debug("Getting final response from LLM")
-                followup = self.client.chat.completions.create(
-                    model=self.model, messages=self.messages
-                )
+                    # Get final response from LLM
+                    followup = self.client.chat.completions.create(
+                        model=self.model, messages=self.messages
+                    )
 
-                reply = followup.choices[0].message.content
+                    # now ask the LLM *once more* to turn that function output into a natural reply
+                    followup = self.client.chat.completions.create(
+                        model=self.model, messages=self.messages
+                    )
+
+                    reply = followup.choices[0].message.content
+                    self.messages.append({"role": "assistant", "content": reply})
+                    return reply
+                reply = message.content or ""
+                if any(
+                    phrase in reply.lower()
+                    for phrase in (
+                        "do you mean",
+                        "which",
+                        "could you",
+                        "please clarify",
+                        "which one",
+                        "Just to confirm",
+                    )
+                ):
+                    # pass the question straight back to the user
+                    self.messages.append({"role": "assistant", "content": reply})
+                    return reply
+                # If no function call, return the message content
                 self.messages.append({"role": "assistant", "content": reply})
                 logger.info("Final response generated")
                 return reply

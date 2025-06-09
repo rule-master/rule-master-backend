@@ -2842,9 +2842,22 @@ class JsonToGdstConverter:
             # Use provided typedDefaultValue or create one based on fieldType
             typed_default_value = condition.get("typedDefaultValue", default_typed_value)
             
-            # Handle different data types
-            data_type = typed_default_value.get("dataType", self._get_data_type_from_field_type(condition.get("fieldType", "String")))
+            # # Handle different data types
+            # data_type = typed_default_value.get("dataType", self._get_data_type_from_field_type(condition.get("fieldType", "String")))
             
+            # if data_type == "NUMERIC_INTEGER" or data_type == "NUMERIC_DOUBLE":
+            #     value_numeric = ET.SubElement(typed_default, "valueNumeric")
+            #     if data_type == "NUMERIC_INTEGER":
+            #         value_numeric.set("class", "int")
+            #     else:
+            #         value_numeric.set("class", "double")
+            #     numeric_value = typed_default_value.get("valueNumeric")
+            #     if numeric_value is not None and numeric_value != "":
+            #         value_numeric.text = str(numeric_value.get("value"))
+            #     else:
+            #         value_numeric.text = "0" if data_type == "NUMERIC_INTEGER" else "0.0"
+            
+            data_type = typed_default_value.get("dataType", self._get_data_type_from_field_type(condition.get("fieldType", "String")))
             if data_type == "NUMERIC_INTEGER" or data_type == "NUMERIC_DOUBLE":
                 value_numeric = ET.SubElement(typed_default, "valueNumeric")
                 if data_type == "NUMERIC_INTEGER":
@@ -2853,7 +2866,12 @@ class JsonToGdstConverter:
                     value_numeric.set("class", "double")
                 numeric_value = typed_default_value.get("valueNumeric")
                 if numeric_value is not None and numeric_value != "":
-                    value_numeric.text = str(numeric_value)
+                    if isinstance(numeric_value, dict):
+                        numeric_value_text = numeric_value.get("value")
+                        if(numeric_value_text is not None and numeric_value_text != ""):
+                            value_numeric.text = str(numeric_value_text)
+                    else:
+                        value_numeric.text = str(numeric_value.get("value"))
                 else:
                     value_numeric.text = "0" if data_type == "NUMERIC_INTEGER" else "0.0"
             

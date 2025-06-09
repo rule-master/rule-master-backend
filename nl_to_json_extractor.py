@@ -329,34 +329,34 @@ Your response should be:
         try:
             json_data = json.loads(json_str)
             
-            # Fix key naming if needed - ensure conditionsBRL is used instead of conditionPatterns
-            if "conditionPatterns" in json_data and "conditionsBRL" not in json_data:
-                # Extract BRLCondition entries
-                brl_conditions = []
-                pattern_conditions = []
+            # # Fix key naming if needed - ensure conditionsBRL is used instead of conditionPatterns
+            # if "conditionPatterns" in json_data and "conditionsBRL" not in json_data:
+            #     # Extract BRLCondition entries
+            #     brl_conditions = []
+            #     pattern_conditions = []
                 
-                # Check if conditionPatterns is a list
-                if isinstance(json_data["conditionPatterns"], list):
-                    for cond in json_data["conditionPatterns"]:
-                        if isinstance(cond, dict) and cond.get("type") == "BRLCondition":
-                            brl_conditions.append(cond)
-                        elif isinstance(cond, dict) and cond.get("type") == "Pattern":
-                            pattern_conditions.append(cond)
+            #     # Check if conditionPatterns is a list
+            #     if isinstance(json_data["conditionPatterns"], list):
+            #         for cond in json_data["conditionPatterns"]:
+            #             if isinstance(cond, dict) and cond.get("type") == "BRLCondition":
+            #                 brl_conditions.append(cond)
+            #             elif isinstance(cond, dict) and cond.get("type") == "Pattern":
+            #                 pattern_conditions.append(cond)
                 
-                # Set the correct keys
-                json_data["conditionsBRL"] = brl_conditions
-                if pattern_conditions:
-                    json_data["conditionPatterns"] = pattern_conditions
-                else:
-                    json_data["conditionPatterns"] = []
+            #     # Set the correct keys
+            #     json_data["conditionsBRL"] = brl_conditions
+            #     if pattern_conditions:
+            #         json_data["conditionPatterns"] = pattern_conditions
+            #     else:
+            #         json_data["conditionPatterns"] = []
                     
-            # Ensure conditionsBRL exists
-            if "conditionsBRL" not in json_data:
-                json_data["conditionsBRL"] = []
+            # # Ensure conditionsBRL exists
+            # if "conditionsBRL" not in json_data:
+            #     json_data["conditionsBRL"] = []
                 
-            # Ensure conditionPatterns exists
-            if "conditionPatterns" not in json_data:
-                json_data["conditionPatterns"] = []
+            # # Ensure conditionPatterns exists
+            # if "conditionPatterns" not in json_data:
+            #     json_data["conditionPatterns"] = []
                 
             return json_data
             
@@ -736,6 +736,9 @@ Whenever you need to create a "Pattern" entry (i.e., a standard Drools Pattern52
   ]
 }
 ```
+- **IMPORTANT GUIDELINES**
+  - Emit exactly one BRLAction object per RestaurantRecommendation action method,(e.g. addRestaurantEmployees, setRestaurantEmployees), not once per data‐row.
+  - Do not replicate the same <definition> + <childColumns> block for every row—define it once under "actionColumns" and then supply each row’s argument in "data.values".
 - **Field Explanations:**
   - `type`: Always set "type": "BRLAction" when defining a Free-Form action on a DRL fact via a Java-bean method call.
   - `width`: The column's width in the guided decision table. Use 100 by default.
@@ -1064,33 +1067,33 @@ If you do have a FreeFormLine/EVAL for "even dailySales," insert it just before 
         return """**IMPORTANT GUIDELINES:**
 1. Extract ONLY the dynamic elements mentioned in the user's description such as conditions, actions, salience, and rule name (if provided). 
 2. For any fields not explicitly mentioned from user input, use the default provided as described in above JSON schema.
-4. For each range mentioned, create a corresponding data row with the appropriate values
+3. For each range mentioned, create a corresponding data row with the appropriate values.
 
-5. ALWAYS include the following in your JSON output:
-   - Two BRLCondition entries: one for EmployeeRecommendation and one for RestaurantData
-   - Include typedDefaultValue for all columns with appropriate default values
-   - For salience attribute, always include reverseOrder=false and useRowNumber=false
+4. ALWAYS include the following in your JSON output:
+   - Two BRLCondition entries: one for EmployeeRecommendation and one for RestaurantData.
+   - Include typedDefaultValue for all columns with appropriate default values.
+   - For salience attribute, always include reverseOrder=false and useRowNumber=false.
 
-6. CRITICAL SCHEMA REQUIREMENTS:
-   - All BRLCondition entries MUST be placed in the "conditionsBRL" array, NOT in "conditionPatterns"
-   - Pattern entries MUST be placed in the "conditionPatterns" array
-   - EVERY condition and action column MUST include a "typedDefaultValue" object with appropriate fields
+5. CRITICAL SCHEMA REQUIREMENTS:
+   - All BRLCondition entries MUST be placed in the "conditionsBRL" array, NOT in "conditionPatterns".
+   - Pattern entries MUST be placed in the "conditionPatterns" array.
+   - EVERY condition and action column MUST include a "typedDefaultValue" object with appropriate fields.
 
-**WHEN TO USE CONDITION PATTERNS VS BRL CONDITIONS:**
+6. **WHEN TO USE CONDITION PATTERNS VS BRL CONDITIONS:**
 - Use conditionPatterns when:
-  * Simple field constraints are needed (e.g., field == value)
-  * Basic comparison operators are sufficient (==, !=, >, <, >=, <=)
-  * No complex expressions or method calls are required
-  * No multiple variable binding in one condition
+  * Simple field constraints are needed (e.g., field == value).
+  * Basic comparison operators are sufficient (==, !=, >, <, >=, <=).
+  * No complex expressions or Java util methods calls are required.
+  * No multiple variable binding in one condition.
 
 - Use conditionsBRL when:
-  * Complex expressions are needed
-  * Method calls are required
-  * Multiple variables need to be bound in one condition
-  * Custom evaluations or calculations are needed
-  * For EmployeeRecommendation, RestaurantData or any Java-bean instantiation (ALWAYS put this in conditionsBRL)
+  * Complex expressions are needed.
+  * Java util methods calls are required such e.g. java.time.LocalTime.parse(...).
+  * Multiple variables need to be bound in one condition.
+  * Custom evaluations or calculations are needed.
+  * For EmployeeRecommendation, RestaurantData or any Java-bean instantiation (ALWAYS put this in conditionsBRL).
 
-7. Return ONLY the JSON object, nothing else
+7. Return ONLY the JSON object, nothing else.
 
 """
     

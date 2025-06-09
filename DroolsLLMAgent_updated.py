@@ -94,12 +94,12 @@ class DroolsLLMAgent:
             > Fields are the attributes of those facts, like 'restaurant size' or 'expected total sales'.
             > Actions are what you want to do with the facts, like 'add employees' or 'set extra employees'.
         - Before you transform their request, identify each condition and action in plain English, then map it to the exact Java-bean property or method.
-        - If you’re not certain which field or method to use (for example, “sales” could mean `totalExpectedSales` or `timeSlotExpectedSales`), politely ask for clarification:
-        > “Just to confirm, when you say ‘sales’, do you mean the restaurant’s **total expected sales** or the **time slot expected sales**?”
-        - Likewise for actions: for example, if the user says assign, add, or set 6 employees” and EmployeeRecommendation class has different methods like `addRestaurantEmployees`, `addRestaurantExtraEmployees`, `setRestaurantEmployees`, and `setRestaurantExtraEmployees`, and you are not certain which method to use, ask:  
-        > “Would you like to use **add restaurant employees** or **add restaurant extra employees**, or should we **set the employees count instead**?”
+        - If you're not certain which field or method to use (for example, "sales" could mean `totalExpectedSales` or `timeSlotExpectedSales`), politely ask for clarification:
+        > "Just to confirm, when you say 'sales', do you mean the restaurant's **total expected sales** or the **time slot expected sales**?"
+        - Likewise for actions: for example, if the user says assign, add, or set 6 employees" and EmployeeRecommendation class has different methods like `addRestaurantEmployees`, `addRestaurantExtraEmployees`, `setRestaurantEmployees`, and `setRestaurantExtraEmployees`, and you are not certain which method to use, ask:  
+        > "Would you like to use **add restaurant employees** or **add restaurant extra employees**, or should we **set the employees count instead**?"
         - you must capture rule's salience/priority. If the user does not provide a salience, you should ask for it.
-        > e.g. “Just to confirm, what priority should I assign to this rule? The higher the number, the higher the priority. For example, if you want this rule to be executed before others, you can assign a higher number like 100. If you want it to be executed after others, you can assign a lower number like 1. If you don't have a specific priority in mind, I can assign a default priority of 50.”
+        > e.g. "Just to confirm, what priority should I assign to this rule? The higher the number, the higher the priority. For example, if you want this rule to be executed before others, you can assign a higher number like 100. If you want it to be executed after others, you can assign a lower number like 1. If you don't have a specific priority in mind, I can assign a default priority of 50."
         - If you captured all the necessary information (even from 1st user input or first followup), don't clarify anything else or ask for user confirmation to call the function, just call it.
         - Send final refined user intent in natural language to the add function not in JSON format.
         
@@ -152,8 +152,35 @@ class DroolsLLMAgent:
         except ImportError:
             # If the module is not available, return default mapping
             return {
-                "RestaurantData": "com.myspace.resopsrecomms",
-                "EmployeeRecommendation": "com.myspace.resopsrecomms",
+                "RestaurantData": {
+                    "package": "com.myspace.resopsrecomms",
+                    "methods": [
+                        "getRestaurantSize()",
+                        "getTotalExpectedSales()",
+                        "getTimeSlotExpectedSales()",
+                        "getCurrentEmployees()",
+                        "getExtraEmployees()",
+                    ],
+                    "fields": [
+                        "restaurantSize",
+                        "totalExpectedSales",
+                        "timeSlotExpectedSales",
+                        "currentEmployees",
+                        "extraEmployees",
+                    ],
+                },
+                "EmployeeRecommendation": {
+                    "package": "com.myspace.resopsrecomms",
+                    "methods": [
+                        "addRestaurantEmployees(int count)",
+                        "addRestaurantExtraEmployees(int count)",
+                        "setRestaurantEmployees(int count)",
+                        "setRestaurantExtraEmployees(int count)",
+                        "getRequiredEmployees()",
+                        "getExtraEmployees()",
+                    ],
+                    "fields": ["requiredEmployees", "extraEmployees"],
+                },
             }
 
     @log_decorator("handle_message")

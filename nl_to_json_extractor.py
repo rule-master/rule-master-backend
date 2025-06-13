@@ -145,9 +145,6 @@ class NLToJsonExtractor:
         json_str = response.choices[0].message.content
         json_data = json.loads(json_str)
         
-        # Post-process the JSON data
-        json_data = self._post_process_drl_json(json_data, java_classes_map)
-        
         return json_data
       
     def _create_drl_system_prompt(self, java_classes_map: Dict[str, Dict] = None) -> str:
@@ -161,58 +158,65 @@ class NLToJsonExtractor:
             str: System prompt for DRL extraction
         """
         # Base system prompt
-        system_prompt = """You are a specialized AI that extracts structured information from natural language descriptions of Drools rules to create a JSON schema. 
+        system_prompt = f"""You are a specialized AI that extracts structured information from natural language descriptions of Drools rules to create a JSON schema. 
 
 Your task is to extract ONLY the dynamic elements from the user's description and fill them into a predefined JSON structure for a Drools Rule Language (DRL) file.
 
 The JSON schema for a DRL rule has the following structure:
 ```json
-{
+{{
   "ruleName": "string",
   "packageName": "string",
   "imports": ["string"],
-  "attributes": {
-    "salience": number
-  },
-  "globals": [],
+  "salience": number,
   "conditions": ["string"],
   "actions": ["string"]
-}
+}}
 ```
 
 IMPORTANT GUIDELINES:
-1. Extract ONLY the dynamic elements mentioned in the user's description
-2. For any fields not explicitly mentioned, use these defaults:
-   - salience: 10
-   - conditions: ["$restaurant : RestaurantData()", "$recommendation : EmployeeRecommendation()"]
-3. If the rule name is not specified, generate a descriptive one based on the rule's purpose
-4. Format conditions and actions as valid Drools syntax
-5. Return ONLY the JSON object, nothing else
+1. use "{self.package}" as the package name.
+2. "imports" must be an array of Java package strings needed by this rule. Always include:
+  - Any Java-bean classes referenced in conditions or actions (e.g. com.myspace.restaurant_staffing.RestaurantSales, com.myspace.restaurant_staffing.EmployeeRecommendation).
+  - If any condition or action uses LocalTime or calls .toLocalTime(), LocalTime.parse(...), or similar, you must also include "java.time.LocalTime".
+  - If the user provided additional Java library names in their input, append those here as well.
+3. Extract ONLY the dynamic elements mentioned in the user's description such as conditions, actions, salience, and rule name (if provided).
+4. If the rule name is not specified, generate a descriptive one based on the rule's purpose
+5. If the user does not provide a salience, use 10 as the default salience.
+6. Format conditions and actions as valid Drools drl syntax
+7. Return ONLY the JSON object, nothing else
 """
-
-        # Add Java class information if available
-        if java_classes_map:
-            system_prompt += "\n\nYou have access to the following Java class definitions:\n"
+        java_classes_prompt = "\n\n**Java Class Information:**\n"
+        java_classes_prompt += "You have access to the following Java class definitions:\n"
+        
+        for class_name, class_info in java_classes_map.items():
+            package = class_info.get("package", "")
+            methods = class_info.get("methods", [])
+            fields = class_info.get("fields", [])
             
-            for class_name, class_info in java_classes_map.items():
-                package = class_info.get("package", "")
-                methods = class_info.get("methods", [])
-                
-                system_prompt += f"\nClass: {class_name}\n"
-                system_prompt += f"Package: {package}\n"
-                
-                if methods:
-                    system_prompt += "Methods:\n"
-                    for method in methods:
-                        system_prompt += f"- {method}\n"
+            java_classes_prompt += f"\nClass: {class_name}\n"
+            java_classes_prompt += f"Package: {package}\n"
             
-            system_prompt += "\nIMPORTANT INSTRUCTIONS FOR JAVA CLASSES:\n"
-            system_prompt += "1. Use the correct package names for imports based on the Java class definitions\n"
-            system_prompt += "2. When writing actions, select the appropriate method based on the user's intent:\n"
-            system_prompt += "   - For 'add' operations, use methods starting with 'add'\n"
-            system_prompt += "   - For 'set' operations, use methods starting with 'set'\n"
-            system_prompt += "   - Match the method signature with the appropriate parameters\n"
-            system_prompt += "3. Always place the EmployeeRecommendation instantiation in the conditions section\n"
+            if fields:
+                java_classes_prompt += "Fields:\n"
+                for field in fields:
+                    java_classes_prompt += f"- {field}\n"
+            
+            if methods:
+                java_classes_prompt += "Methods:\n"
+                for method in methods:
+                    java_classes_prompt += f"- {method}\n"
+        
+        java_classes_prompt += "\n**IMPORTANT INSTRUCTIONS FOR JAVA CLASSES:**\n"
+        java_classes_prompt += "1. Use the correct package names for imports based on the Java class definitions\n"
+        java_classes_prompt += "2. When writing conditions and actions, select the appropriate Java-bean properties and methods based on the user's intent:\n"
+        java_classes_prompt += "   - For 'add' operations, use methods starting with 'add'\n"
+        java_classes_prompt += "   - For 'set' operations, use methods starting with 'set'\n"
+        java_classes_prompt += "   - for properties, use the appropriate property name\n"
+        java_classes_prompt += "   - Match the method signature with the appropriate parameters\n"
+        java_classes_prompt += "3. Always place '$recommendation : EmployeeRecommendation()' instantiation in the conditions section\n"
+        
+        system_prompt += java_classes_prompt
         
         # Add example
         system_prompt += """
@@ -226,76 +230,76 @@ Your response should be:
   "ruleName": "recommend_extra_staff_for_autoking",
   "packageName": "com.myspace.rules",
   "imports": ["com.myspace.restopsrecomms.RestaurantData", "com.myspace.restopsrecomms.EmployeeRecommendation"],
-  "attributes": {
-    "salience": 90
-  },
-  "globals": [],
+  "salience": 90,
   "conditions": [
-    "$restaurant : RestaurantData()",
-    "$restaurant.hasAutoKing == true",
-    "$restaurant.size == \"LARGE\"",
+    "$restaurant : RestaurantData(hasAutoKing == true, size == \"LARGE\")",
     "$recommendation : EmployeeRecommendation()"
   ],
   "actions": [
     "$recommendation.addRestaurantExtraEmployees(2);"
   ]
 }
-```"""
+```
+another example:
+User: "Create a rule that adds 2 employees when a restaurant has AutoKing and the restaurant size is Large. The rule should have a salience of 90."
+
+Your response should be:
+```json
+{
+  "ruleName": "recommend_staffing_based_on_sales",
+  "packageName": "com.myspace.rules",
+  "imports": ["com.myspace.restopsrecomms.RestaurantData", "com.myspace.restopsrecomms.EmployeeRecommendation"],
+  "salience": 80,
+  "conditions": [
+    "$restaurant : RestaurantData(totalExpectedSales > 5000)",
+    "$recommendation : EmployeeRecommendation()"
+  ],
+  "actions": [
+    "$recommendation.addRestaurantEmployees(2);"
+  ]
+}
+```
+another example:
+User: "Create a rule that adds 3 employees when a restaurant size is Large. The rule should have a salience of 80."
+
+Your response should be:
+```json
+{
+  "ruleName": "recommend_extra_staff_for_large_restaurant",
+  "packageName": "com.myspace.rules",
+  "imports": ["com.myspace.restopsrecomms.RestaurantData", "com.myspace.restopsrecomms.EmployeeRecommendation"],  
+  "salience": 80,
+  "conditions": [
+    "$restaurant : RestaurantData(restaurantSize == \"L\")",
+    "$recommendation : EmployeeRecommendation()"
+  ],
+  "actions": [
+    "$recommendation.addRestaurantEmployees(3);"
+  ]
+}
+```
+another example:
+User: "Create a rule that adds 2 employees when a restaurant's time slot expected sales is greater than 4000. The rule should have a salience of 75."
+
+Your response should be:
+```json
+{
+  "ruleName": "recommend_staff_for_peak_time_slot",
+  "packageName": "com.myspace.rules",
+  "imports": ["com.myspace.restopsrecomms.RestaurantData", "com.myspace.restopsrecomms.EmployeeRecommendation"],
+  "salience": 75,
+  "conditions": [
+    "$restaurant : RestaurantData(timeSlotExpectedSales > 4000)",
+    "$recommendation : EmployeeRecommendation()"
+  ],
+  "actions": [
+    "$recommendation.addRestaurantEmployees(2);"
+  ]
+}
+```
+"""
 
         return system_prompt
-    
-    def _post_process_drl_json(self, json_data: Dict[str, Any], java_classes_map: Dict[str, Dict] = None) -> Dict[str, Any]:
-        """
-        Post-process the DRL JSON data.
-        
-        Args:
-            json_data (dict): JSON data from LLM
-            java_classes_map (dict): Dictionary mapping class names to package, class name, and methods
-            
-        Returns:
-            dict: Post-processed JSON data
-        """
-        # Update package name from environment variable if available
-        if self.package:
-            json_data["packageName"] = self.package
-        
-        # Update imports based on Java classes if available
-        if java_classes_map:
-            # Track which classes are used in conditions and actions
-            used_classes = set()
-            
-            # Check conditions
-            conditions_str = " ".join(json_data.get("conditions", []))
-            for class_name in java_classes_map:
-                if class_name in conditions_str:
-                    used_classes.add(class_name)
-            
-            # Check actions
-            actions_str = " ".join(json_data.get("actions", []))
-            for class_name in java_classes_map:
-                if class_name in actions_str:
-                    used_classes.add(class_name)
-            
-            # Update imports
-            imports = []
-            for class_name in used_classes:
-                if class_name in java_classes_map:
-                    package = java_classes_map[class_name].get("package", "")
-                    if package:
-                        imports.append(f"{package}.{class_name}")
-            
-            if imports:
-                json_data["imports"] = imports
-        
-        # Ensure EmployeeRecommendation is in conditions
-        conditions = json_data.get("conditions", [])
-        has_employee_recommendation = any("EmployeeRecommendation" in condition for condition in conditions)
-        
-        if not has_employee_recommendation:
-            conditions.append("$recommendation : EmployeeRecommendation()")
-            json_data["conditions"] = conditions
-        
-        return json_data
     
     def _extract_gdst_json(self, user_input: str, java_classes_map: Dict[str, Dict] = None) -> Dict[str, Any]:
         """
@@ -680,8 +684,8 @@ Whenever you need to create a "Pattern" entry (i.e., a standard Drools Pattern52
   - `conditions`: Each element corresponds to one condition-column52 in the guided decision table.
   - `typedDefaultValue`: ALWAYS include this object with all its fields for EVERY condition:
     - valueString: Always include this tag. If the user did not supply a default, set it to "".
-    - valueNumeric: Include this object if the fieldType is numeric, with appropriate class and value.
-    - valueBoolean: Include this if the fieldType is Boolean, otherwise omit.
+    - valueNumeric: Include this object only if the fieldType is numeric, with appropriate class and value, otherwise omit.
+    - valueBoolean: Include this only if the fieldType is Boolean, otherwise omit.
     - dataType: Must be one of "NUMERIC_INTEGER", "NUMERIC_DOUBLE", "STRING", or "BOOLEAN" matching the Java field's type.
     - isOtherwise: Always set to false unless the user specifically asks for an otherwise clause.
   - `header`: The visible column header label (e.g. "Min Sales" or "Max Sales").
@@ -739,6 +743,8 @@ Whenever you need to create a "Pattern" entry (i.e., a standard Drools Pattern52
 - **IMPORTANT GUIDELINES**
   - Emit exactly one BRLAction object per RestaurantRecommendation action method,(e.g. addRestaurantEmployees, setRestaurantEmployees), not once per data‐row.
   - Do not replicate the same <definition> + <childColumns> block for every row—define it once under "actionColumns" and then supply each row’s argument in "data.values".
+  - **BRLAction Columns** must **never** contain conditional or branching logic.
+  – Do **not** repeat or inline any `if(...)` statements inside `actionColumns.definition`.
 - **Field Explanations:**
   - `type`: Always set "type": "BRLAction" when defining a Free-Form action on a DRL fact via a Java-bean method call.
   - `width`: The column's width in the guided decision table. Use 100 by default.
@@ -854,6 +860,45 @@ Whenever you need to create a "Pattern" entry (i.e., a standard Drools Pattern52
   ]
 }
 ```
+// ❌ WRONG: DO NOT DO THIS
+"actionColumns": [
+  {
+    "type":"BRLAction",
+    "definition":[
+      { "text":
+        "if (…small…) { recommendation.setRestaurantEmployees(5); } else if (…) { … }"
+      }
+    ],
+    …
+  }
+]
+
+// ✅ RIGHT: single method invocation only
+"actionColumns": [
+  {
+    "type":"BRLAction",
+    "width":100,
+    "header":"Assign Base Employees",
+    "definition":[
+      { "text":"recommendation.addRestaurantEmployees(@{count})" }
+    ],
+    "childColumns":{
+      "BRLActionVariableColumn":{
+        "typedDefaultValue":{
+          "valueNumeric":{ "class":"int","value":0 },
+          "valueString":"",
+          "dataType":"NUMERIC_INTEGER",
+          "isOtherwise":false
+        },
+        "header":"Base Employees Count",
+        "varName":"count",
+        "fieldType":"Integer",
+        "hidden":false,
+        "width":100
+      }
+    }
+  }
+]
 
 **Key takeaways:**
 - The top-level must read "type": "BRLAction".
@@ -1078,20 +1123,167 @@ If you do have a FreeFormLine/EVAL for "even dailySales," insert it just before 
    - All BRLCondition entries MUST be placed in the "conditionsBRL" array, NOT in "conditionPatterns".
    - Pattern entries MUST be placed in the "conditionPatterns" array.
    - EVERY condition and action column MUST include a "typedDefaultValue" object with appropriate fields.
+   
+6. CRITICAL SCHEMA REQUIREMENTS:
+   - **conditionPatterns** holds every simple field‐comparison:
+     • Single‐operator tests (==, !=, >, <, ≥, ≤).  
+     • Ranges (≥ lower AND < upper) — exactly one Pattern object with two columns.  
+     **Do not** wrap these in `eval(...)` or in BRLCondition.
+   - **conditionsBRL** is reserved only for:
+     • Fact‐instantiations/bindings (EmployeeRecommendation(), RestaurantData(), etc.).  
+     • Complex expressions requiring `eval(...)` or external libraries methods (e.g. `LocalTime.parse()`).
 
-6. **WHEN TO USE CONDITION PATTERNS VS BRL CONDITIONS:**
-- Use conditionPatterns when:
-  * Simple field constraints are needed (e.g., field == value).
-  * Basic comparison operators are sufficient (==, !=, >, <, >=, <=).
-  * No complex expressions or Java util methods calls are required.
-  * No multiple variable binding in one condition.
+7. WHEN TO USE CONDITION PATTERNS VS BRL CONDITIONS:
 
-- Use conditionsBRL when:
-  * Complex expressions are needed.
-  * Java util methods calls are required such e.g. java.time.LocalTime.parse(...).
-  * Multiple variables need to be bound in one condition.
-  * Custom evaluations or calculations are needed.
-  * For EmployeeRecommendation, RestaurantData or any Java-bean instantiation (ALWAYS put this in conditionsBRL).
+   **conditionPatterns** (plain field checks)
+   - Simple equals:  
+     ```json
+    "conditionPatterns": [
+    {
+      "type": "Pattern",
+      "factType": "RestaurantData",
+      "boundName": "RestaurantData",
+      "isNegated": false,
+      "conditions": [
+        {
+          "typedDefaultValue": {
+            "valueString": "",
+            "dataType": "STRING",
+            "isOtherwise": false
+          },
+          "header": "Size",
+          "factField": "restaurantSize",
+          "operator": "==",
+          "fieldType": "String",
+          "hidden": false,
+          "width": 100,
+          "parameters": "",
+          "binding": ""
+        }
+      ],
+      "window": {
+        "parameters": ""
+      }
+    }
+  ]
+     ```
+     *Data rows then supply “small”, “medium”, “large” under that one Pattern.*
+
+   - Numeric ranges:
+     ```jsonc
+    "conditionPatterns": [
+    {
+      "type": "Pattern",
+      "factType": "RestaurantData",
+      "boundName": "RestaurantData",
+      "isNegated": false,
+      "conditions": [
+        {
+          "typedDefaultValue": {
+            "valueString": "",
+            "valueNumeric": null,
+            "valueBoolean": null,
+            "dataType": "NUMERIC_DOUBLE",
+            "isOtherwise": false
+          },
+          "header": "Max Sales",
+          "factField": "totalExpectedSales",
+          "operator": "<",
+          "fieldType": "Double",
+          "hidden": false,
+          "width": 100,
+          "parameters": "",
+          "binding": ""
+        },
+        {
+          "typedDefaultValue": {
+            "valueString": "",
+            "valueNumeric": null,
+            "valueBoolean": null,
+            "dataType": "NUMERIC_DOUBLE",
+            "isOtherwise": false
+          },
+          "header": "Min Sales",
+          "factField": "totalExpectedSales",
+          "operator": ">=",
+          "fieldType": "Double",
+          "hidden": false,
+          "width": 100,
+          "parameters": "",
+          "binding": ""
+        }
+      ],
+      "window": {
+        "parameters": ""
+      }
+    }
+  ]
+     ```
+     *Only one Pattern, two condition‐columns.*
+
+   **conditionsBRL** (complex or binding tests)
+   - Always include two BRLCondition entries (bindings) first:
+   - Use further BRLCondition only for `eval(...)` or library calls.
+   ```json eval example
+   {
+      "type": "BRLCondition",
+      "width": -1,
+      "header": "Even Daily Sales",
+      "hidden": false,
+      "constraintValueType": 1,
+      "parameters": "",
+      "definition": [
+        {"text": "eval(restaurantData.getDailySales() % 2 == 0)"}
+      ],
+      "childColumns": {
+        "BRLConditionVariableColumn": {
+          "typedDefaultValue": {
+            "valueBoolean": true,
+            "valueString": "",
+            "dataType": "BOOLEAN",
+            "isOtherwise": false
+          },
+          "hideColumn": false,
+          "width": 100,
+          "header": "Even Daily Sales",
+          "constraintValueType": 1,
+          "fieldType": "Boolean",
+          "parameters": "",
+          "varName": "evenDailySalesCheck"
+        }
+      }
+    }
+   ```
+   ```json complex eval example
+   {
+      "type": "BRLCondition",
+      "width": -1,
+      "header": "Time of Day Check",
+      "hidden": false,
+      "constraintValueType": 1,
+      "parameters": "",
+      "definition": [
+        {"text": "eval(restaurantData.getCalculationDateTime().toLocalTime() >= LocalTime.parse(\"@{targetTime}\"))"}
+      ],
+      "childColumns": {
+        "BRLConditionVariableColumn": {
+          "typedDefaultValue": {
+            "valueBoolean": true,
+            "valueString": "",
+            "dataType": "BOOLEAN",
+            "isOtherwise": false
+          },
+          "hideColumn": false,
+          "width": 100,
+          "header": "Time of Day Check",
+          "constraintValueType": 1,
+          "fieldType": "Boolean",
+          "parameters": "",
+          "varName": "targetTime"
+        }
+      }
+    }
+   ```
 
 7. Return ONLY the JSON object, nothing else.
 

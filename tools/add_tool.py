@@ -77,7 +77,7 @@ def add_rule(user_input: str, java_classes_map: Dict[str, str], rules_dir: str, 
         json_file_path = save_json_to_file(json_schema, rules_dir)
         
         # Convert JSON schema to Drools file
-        output_path = convert_json_to_drools(json_schema, rules_dir)
+        output_path = convert_json_to_drools(json_schema, rules_dir, rule_type)
         
         # Determine rule name for the response
         if rule_type == "drl":

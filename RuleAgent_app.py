@@ -1,8 +1,9 @@
 import os
 from dotenv import load_dotenv
 import streamlit as st
-# from DroolsLLMAgent import DroolsLLMAgent
 from logger_utils import logger, log_operation
+from src.chat_session import ChatSession, ChatSessionManager
+from datetime import datetime
 
 # Load environment variables
 logger.info("Loading environment variables in RuleAgent_app.py...")
@@ -12,14 +13,11 @@ load_dotenv()
 logger.debug("Environment check - OPENAI_API_KEY exists: %s", "Yes" if os.getenv("OPENAI_API_KEY") else "No")
 from DroolsLLMAgent_updated import DroolsLLMAgent
 
-# Initialize the Drools LLM Agent in session state
-# if 'agent' not in st.session_state:
-#     openai_key = os.getenv("OPENAI_API_KEY")
-#     if not openai_key:
-#         st.error("Please set the OPENAI_API_KEY environment variable.")
-#         st.stop()
-#     st.session_state.agent = DroolsLLMAgent(api_key=openai_key)
+# Initialize session manager
+if 'session_manager' not in st.session_state:
+    st.session_state.session_manager = ChatSessionManager()
 
+# Initialize the Drools LLM Agent in session state
 if 'agent' not in st.session_state:
     openai_key = os.getenv("OPENAI_API_KEY")
     if not openai_key:
@@ -30,7 +28,18 @@ if 'agent' not in st.session_state:
     
     logger.info("Initializing DroolsLLMAgent")
     try:
-        st.session_state.agent = DroolsLLMAgent(api_key=openai_key)
+        # Get Java directory from environment variable
+        java_dir = os.getenv("JAVA_DIR", "")
+        
+        # Get rules directory from environment variable or use default
+        rules_dir = os.getenv("RULES_DIR", os.path.join(os.getcwd(), "rules"))
+        
+        # Initialize agent with directories
+        st.session_state.agent = DroolsLLMAgent(
+            api_key=openai_key,
+            rules_dir=rules_dir,
+            java_dir=java_dir
+        )
         logger.info("DroolsLLMAgent initialized successfully")
         log_operation('agent_initialization', {'status': 'success'})
     except Exception as e:
@@ -39,26 +48,49 @@ if 'agent' not in st.session_state:
         log_operation('agent_initialization', {'status': 'failed'}, error=e)
         st.error(error_msg)
         st.stop()
-    
-    # Get Java directory from environment variable
-    java_dir = os.getenv("JAVA_DIR", "")
-    
-    # Get rules directory from environment variable or use default
-    rules_dir = os.getenv("RULES_DIR", os.path.join(os.getcwd(), "rules"))
-    
-    # Initialize agent with directories
-    st.session_state.agent = DroolsLLMAgent(
-        api_key=openai_key,
-        rules_dir=rules_dir,
-        java_dir=java_dir
-    )
 
-# Initialize chat history in session state
-if 'messages' not in st.session_state:
-    st.session_state.messages = []
-    logger.info("Initialized new chat session")
-    log_operation('session_initialization')
+def load_chat_session(session: ChatSession):
+    """Load a chat session and sync it with the LLM agent's context."""
+    st.session_state.current_session = session
+    # Reset agent's message history and add all messages from the session
+    st.session_state.agent.messages = []
+    for msg in session.messages:
+        st.session_state.agent.messages.append(msg)
 
+# Initialize or load chat session
+if 'current_session' not in st.session_state:
+    st.session_state.current_session = ChatSession()
+
+# Sidebar for session management
+with st.sidebar:
+    st.title("Chat Sessions")
+    
+    # New chat button
+    if st.button("New Chat"):
+        st.session_state.current_session = ChatSession()
+        # Reset agent's message history
+        st.session_state.agent.messages = []
+        st.rerun()
+    
+    # List existing sessions
+    st.subheader("Previous Sessions")
+    sessions = st.session_state.session_manager.list_sessions()
+    
+    for session in sessions:
+        created_at = datetime.fromisoformat(session["created_at"]).strftime("%Y-%m-%d %H:%M")
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            if st.button(f"📝 {created_at} ({session['message_count']} messages)", key=f"load_{session['session_id']}"):
+                loaded_session = st.session_state.session_manager.load_session(session["session_id"])
+                if loaded_session:
+                    load_chat_session(loaded_session)
+                    st.rerun()
+        with col2:
+            if st.button("🗑️", key=f"delete_{session['session_id']}"):
+                st.session_state.session_manager.delete_session(session["session_id"])
+                st.rerun()
+
+# Main chat interface
 st.title("🤖 Drools Rule Assistant")
 st.markdown("Interact with the agent to add, search, edit or delete Drools rules.")
 
@@ -67,8 +99,8 @@ user_input = st.chat_input("Type your message here...")
 if user_input:
     logger.info(f"Received user input: {user_input[:100]}...")  # Log first 100 chars
     
-    # Append user message
-    st.session_state.messages.append({"role": "user", "content": user_input})
+    # Add message to current session
+    st.session_state.current_session.add_message("user", user_input)
     
     # Get assistant response with logging
     try:
@@ -81,7 +113,11 @@ if user_input:
             'reply_length': len(assistant_reply) if assistant_reply else 0
         })
         
-        st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
+        # Add assistant reply to session
+        st.session_state.current_session.add_message("assistant", assistant_reply)
+        
+        # Save session after each interaction
+        st.session_state.session_manager.save_session(st.session_state.current_session)
         
     except Exception as e:
         error_msg = f"Error processing message: {str(e)}"
@@ -90,7 +126,7 @@ if user_input:
         st.error(f"🔴 {error_msg}")
 
 # Display chat history
-for msg in st.session_state.messages:
+for msg in st.session_state.current_session.messages:
     if msg["role"] == "user":
         st.chat_message("user").write(msg["content"])
     else:

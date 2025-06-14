@@ -48,3 +48,6 @@ logs/
 .pytest_cache/
 .coverage
 htmlcov/ 
+
+# Chat sessions
+chat_sessions/

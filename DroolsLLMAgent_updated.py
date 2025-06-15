@@ -9,11 +9,10 @@ import os
 import json
 from openai import OpenAI
 from logger_utils import logger, log_operation, log_decorator
-
-# Import the add_rule function
 from tools.add_tool import add_rule
 from tools.rule_management.delete import delete_rule
 from tools.rule_management.search import search_rules
+from utils.parse_java_classes import parse_java_classes
 
 
 class DroolsLLMAgent:
@@ -151,9 +150,6 @@ class DroolsLLMAgent:
             dict: Dictionary mapping class names to package, class name, and methods
         """
         try:
-            # Import the map_java_classes function
-            from utils.parse_java_classes import parse_java_classes
-
             return parse_java_classes(self.java_dir)
         except ImportError:
             # If the module is not available, return default mapping
@@ -441,8 +437,6 @@ class DroolsLLMAgent:
             dict: Function response
         """
         try:
-            # Import the delete_rule function
-
             # Call the delete_rule function
             return delete_rule(
                 rule_name=args["rule_name"],
@@ -466,9 +460,6 @@ class DroolsLLMAgent:
             dict: Function response
         """
         try:
-            # Import the search_rules function
-            from tools.search_tool import search_rules
-
             logger.debug("Successfully imported search_rules function")
 
             # Call the search_rules function

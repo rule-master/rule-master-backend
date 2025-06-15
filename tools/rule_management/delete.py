@@ -5,10 +5,10 @@ This module provides functionality to delete rules from both the filesystem and 
 """
 
 import os
-from typing import Dict, Any, Optional
-from openai import OpenAI
+from typing import Dict, Any
 from logger_utils import logger, log_decorator
 from .search import search_rules
+from qdrant_client import QdrantClient
 
 @log_decorator("delete_rule")
 def delete_rule(
@@ -117,7 +117,6 @@ def delete_rule(
 
         # Delete the rule from Qdrant
         try:
-            from qdrant_client import QdrantClient
             qdrant_client = QdrantClient(
                 url=os.getenv("QDRANT_URL", "http://localhost:6333"),
                 api_key=os.getenv("QDRANT_API_KEY"),

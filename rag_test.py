@@ -15,7 +15,7 @@ from openai import OpenAI
 from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 from dotenv import load_dotenv
-import uuid
+import numpy as np
 
 # --------------- Configuration ---------------
 # Environment variables:
@@ -59,7 +59,6 @@ def embed_text(text: str) -> list:
             r = oai.embeddings.create(input=chunk, model=EMBEDDING_MODEL)
             vecs.append(r.data[0].embedding)    # ← must be append, never extend!
         # now average N × 1536 → one 1536 vector
-        import numpy as np
         matrix = np.vstack(vecs)              # shape (N, 1536)
         avg = np.mean(matrix, axis=0)         # shape (1536,)
         return avg.tolist()

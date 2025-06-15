@@ -1,7 +1,6 @@
 import os
 import json
 import requests
-from datetime import datetime
 import dateutil.parser as dateparser
 from logger_utils import logger, log_operation
 

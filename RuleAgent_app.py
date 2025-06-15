@@ -4,6 +4,8 @@ import streamlit as st
 from logger_utils import logger, log_operation
 from src.chat_session import ChatSession, ChatSessionManager
 from datetime import datetime
+from DroolsLLMAgent_updated import DroolsLLMAgent
+
 
 # Load environment variables
 logger.info("Loading environment variables in RuleAgent_app.py...")
@@ -11,7 +13,6 @@ load_dotenv()
 
 # Log environment status
 logger.debug("Environment check - OPENAI_API_KEY exists: %s", "Yes" if os.getenv("OPENAI_API_KEY") else "No")
-from DroolsLLMAgent_updated import DroolsLLMAgent
 
 # Initialize session manager
 if 'session_manager' not in st.session_state:

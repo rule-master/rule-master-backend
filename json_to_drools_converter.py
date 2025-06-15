@@ -12,6 +12,8 @@ import xml.dom.minidom as minidom
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Any, Optional, Tuple
 from logger_utils import logger
+import sys
+    
 
 class JsonToDrlConverter:
     """
@@ -1050,8 +1052,6 @@ def convert_json_to_drools(json_data: Dict[str, Any], output_dir: str, rule_type
 
 
 if __name__ == "__main__":
-    import sys
-    
     if len(sys.argv) < 3:
         print("Usage: python json_to_drools_converter_final_format.py <input_json_file> <output_file>")
         sys.exit(1)

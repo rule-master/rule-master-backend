@@ -9,20 +9,16 @@
 # 6. Verifies the index by running a sample similarity query.
 
 import os
-import glob
 import json
 import argparse
 from openai import OpenAI
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
-    Filter,
-    FieldCondition,
-    MatchValue,
-    PayloadSchemaType,
     PointStruct,
 )
 from dotenv import load_dotenv
 import uuid
+import numpy as np
 
 # --------------- Configuration ---------------
 # Environment variables:
@@ -95,12 +91,12 @@ def embed_text(text: str, client: OpenAI = None) -> list:
             r = client_to_use.embeddings.create(input=chunk, model=EMBEDDING_MODEL)
             vecs.append(r.data[0].embedding)  # ← must be append, never extend!
         # now average N × 1536 → one 1536 vector
-        import numpy as np
 
         matrix = np.vstack(vecs)  # shape (N, 1536)
         avg = np.mean(matrix, axis=0)  # shape (1536,)
         return avg.tolist()
-    
+
+
 def reindex_single_point(
     client: OpenAI, collection_name: str, file_title: str, rules_dir: str
 ):
@@ -134,7 +130,9 @@ def reindex_single_point(
                 try:
                     with open(metadata_path, "r") as f:
                         metadata = json.load(f)
-                        refined_prompt = metadata.get('refined_user_prompt', rule_content)
+                        refined_prompt = metadata.get(
+                            "refined_user_prompt", rule_content
+                        )
                 except Exception as e:
                     print(f"Warning: Could not load metadata for {file_path}: {str(e)}")
 
@@ -199,7 +197,7 @@ def reindex_collection(
     # Prepare the metadata with the correct format
     payload = {
         "filesystem_filename": filesystem_filename,
-        "refined_prompt": metadata['refined_user_prompt']
+        "refined_prompt": metadata["refined_user_prompt"],
     }
 
     # Create a unique ID for the point
@@ -217,4 +215,61 @@ def reindex_collection(
         ],
     )
 
-    print(f"Successfully indexed rule {filesystem_filename} into collection {collection_name}")
+    print(
+        f"Successfully indexed rule {filesystem_filename} into collection {collection_name}"
+    )
+
+
+def index_new_rule(
+    client: OpenAI, 
+    collection_name: str, 
+    rule_content: str, 
+    file_path: str,
+    refined_prompt: str
+):
+    """
+    Index a newly created rule file into the collection.
+
+    Args:
+        client (OpenAI): OpenAI client instance
+        collection_name (str): Name of the collection
+        rule_content (str): The content of the rule to index
+        file_path (str): Path to the rule file
+        refined_prompt (str): The refined user prompt
+    """
+    # Initialize Qdrant client
+    qdrant_client = QdrantClient(
+        url=os.getenv("QDRANT_URL", "http://localhost:6333"),
+        api_key=os.getenv("QDRANT_API_KEY"),
+    )
+
+    # Create the embedding
+    emb = embed_text(rule_content, client)
+
+    # Get the filesystem-friendly filename
+    filesystem_filename = os.path.basename(file_path)
+
+    # Prepare the metadata
+    payload = {
+        "filesystem_filename": filesystem_filename,
+        "refined_prompt": refined_prompt,
+    }
+
+    # Create a unique ID for the point
+    point_id = str(uuid.uuid4())
+
+    # Upsert the point
+    qdrant_client.upsert(
+        collection_name=collection_name,
+        points=[
+            PointStruct(
+                id=point_id,
+                vector=emb,
+                payload=payload,
+            )
+        ],
+    )
+
+    print(
+        f"Successfully indexed new rule {filesystem_filename} into collection {collection_name}"
+    )

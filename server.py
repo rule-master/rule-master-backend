@@ -3,7 +3,8 @@ from dotenv import load_dotenv
 import subprocess
 import sys
 import socket
-import io
+import threading
+
 
 # Load environment variables at startup
 print("Current working directory:", os.getcwd())
@@ -117,7 +118,6 @@ def start_streamlit():
         # Wait a bit longer for startup and check process status
         try:
             # Read output in a non-blocking way
-            import threading
 
             def read_output(pipe, prefix):
                 for line in pipe:

@@ -9,15 +9,9 @@ import os
 import json
 from typing import Dict, Any, Optional
 from openai import OpenAI
-
-# Import the NL to JSON extractor
 from nl_to_json_extractor import NLToJsonExtractor
-
-# Import the JSON to Drools converter
 from json_to_drools_converter import convert_json_to_drools
-
-# Import reindexing functionality
-from rag_setup import reindex_collection
+from rag_setup import index_new_rule
 
 def save_json_to_file(json_data, output_dir, filename=None):
     """
@@ -103,17 +97,18 @@ def add_rule(
             except Exception as e:
                 raise Exception(f"Failed to read GDST file with both UTF-8 and latin-1 encodings: {str(e)}")
 
-        # Create simplified metadata for indexing
-        indexing_metadata = {
-            "filesystem_filename": os.path.basename(output_path),
-            "refined_user_prompt": user_input,
-        }
-
-        # Index the rule
+        # Initialize OpenAI client if not provided
         if client is None:
             client = OpenAI(api_key=api_key)
-        
-        reindex_collection(client, collection_name, gdst_content, indexing_metadata)
+
+        # Index the new rule
+        index_new_rule(
+            client=client,
+            collection_name=collection_name,
+            rule_content=gdst_content,
+            file_path=output_path,
+            refined_prompt=user_input
+        )
 
         return {
             "success": True,

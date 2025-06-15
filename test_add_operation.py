@@ -7,7 +7,6 @@ This script tests the end-to-end add operation from natural language to Drools r
 
 import os
 import sys
-import json
 from DroolsLLMAgent_updated import DroolsLLMAgent
 
 def test_add_operation():

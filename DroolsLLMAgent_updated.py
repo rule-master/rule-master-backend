@@ -10,6 +10,11 @@ import json
 from openai import OpenAI
 from logger_utils import logger, log_operation, log_decorator
 
+# Import the add_rule function
+from tools.add_tool import add_rule
+from tools.rule_management.delete import delete_rule
+from tools.rule_management.search import search_rules
+
 
 class DroolsLLMAgent:
     """
@@ -40,6 +45,7 @@ class DroolsLLMAgent:
             self.client = OpenAI(api_key=api_key)
             self.model = model
             self.api_key = api_key
+            self.collection_name = 'drools-rule-examples'
             logger.debug("OpenAI client initialized")
 
             # Set up directories
@@ -61,11 +67,6 @@ class DroolsLLMAgent:
 
             # Set up system prompt
             self._setup_system_prompt()
-
-            # Ensure rules are indexed
-            # from tools.search_tool import ensure_rules_indexed
-            # if not ensure_rules_indexed(self.rules_dir, api_key):
-            #     logger.warning("Failed to index rules during initialization")
 
             logger.info("DroolsLLMAgent initialization completed")
         except Exception as e:
@@ -96,7 +97,7 @@ class DroolsLLMAgent:
                 - refine user intent to the closest Java-bean property or method while keeping it in natural language.
                 - Look up the term in your Java class map (see below).
                 - If you find *exactly one* match, proceed.
-                - If you find *zero* matches, ask the user “Please clarify, as I can't find anything called ‘XXX’ in our business logic, can you rephrase or tell me which one you mean?”
+                - If you find *zero* matches, ask the user “Please clarify, as I can't find anything called 'XXX' in our business logic, can you rephrase or tell me which one you mean?”
                 - If you find *more than one* possible match, ask the user to choose. For example:
                     > "Just to confirm, when you say 'sales', do you mean the restaurant's **total expected sales** or the **time slot expected sales**?"
                 - Likewise for actions: for example, if the user says assign, add, or set 6 employees" and EmployeeRecommendation class has different methods like `addRestaurantEmployees`, `addRestaurantExtraEmployees`, `setRestaurantEmployees`, and `setRestaurantExtraEmployees`, and you are not certain which method to use, ask:  
@@ -410,58 +411,24 @@ class DroolsLLMAgent:
             dict: Function response
         """
         try:
-            # Import the add_rule function
-            from tools.add_tool import add_rule
 
-            # from tools.search_tool import ensure_rules_indexed
+            # Store the original user input before conversion
+            original_input = args["description"]
+            logger.info(f"Original user input: {args}")
 
             # Call the add_rule function
             result = add_rule(
-                user_input=args["description"],
+                user_input=original_input,  # Pass the original input
                 java_classes_map=self.java_classes_map,
                 rules_dir=self.rules_dir,
                 api_key=self.api_key,
+                client=self.client,
+                collection_name=self.collection_name
             )
-
-            # If rule was added successfully, ensure it's indexed
-            # if result.get("success", False):
-            #     ensure_rules_indexed(self.rules_dir, self.api_key)
 
             return result
         except Exception as e:
             return {"success": False, "message": f"Error creating rule: {str(e)}"}
-
-    def _edit_rule(self, args):
-        """
-        Edit an existing rule.
-
-        Args:
-            args (dict): Function arguments
-
-        Returns:
-            dict: Function response
-        """
-        try:
-            # Import the edit_rule function
-            from tools.edit_tool import edit_rule
-
-            # from tools.search_tool import ensure_rules_indexed
-
-            # Call the edit_rule function
-            result = edit_rule(
-                rule_name=args["rule_name"],
-                changes=args["changes"],
-                rules_dir=self.rules_dir,
-                api_key=self.api_key,
-            )
-
-            # If rule was edited successfully, ensure it's indexed
-            # if result.get("success", False):
-            #     ensure_rules_indexed(self.rules_dir, self.api_key)
-
-            return result
-        except Exception as e:
-            return {"success": False, "message": f"Error editing rule: {str(e)}"}
 
     def _delete_rule(self, args):
         """
@@ -474,60 +441,18 @@ class DroolsLLMAgent:
             dict: Function response
         """
         try:
-            # Import required functions
-            from tools.search_tool import search_rules
-            import shutil
-            import os
+            # Import the delete_rule function
 
-            # First search for the rule
-            search_result = search_rules(
-                query=args["rule_name"],
+            # Call the delete_rule function
+            return delete_rule(
+                rule_name=args["rule_name"],
                 rules_dir=self.rules_dir,
-                api_key=self.api_key,
+                api_key=self.api_key
             )
 
-            if not search_result.get("success", False):
-                return {
-                    "success": False,
-                    "message": f"Could not find any rules matching '{args['rule_name']}'. Please check the rule name and try again.",
-                }
-
-            # Get the best matching rule
-            rules = search_result.get("rules", [])
-            if not rules:
-                return {
-                    "success": False,
-                    "message": f"No rules found matching '{args['rule_name']}'",
-                }
-
-            best_match = rules[0]  # First result is the best match
-            rule_name = best_match["rule_name"]
-
-            # Ensure deleted_rules directory exists
-            deleted_rules_dir = os.path.join(self.rules_dir, "deleted_rules")
-            os.makedirs(deleted_rules_dir, exist_ok=True)
-
-            # Move the file to deleted_rules directory
-            source_path = os.path.join(self.rules_dir, rule_name)
-            dest_path = os.path.join(deleted_rules_dir, rule_name)
-
-            if os.path.exists(source_path):
-                shutil.move(source_path, dest_path)
-                logger.info(f"Moved rule file from {source_path} to {dest_path}")
-                return {
-                    "success": True,
-                    "message": f"Successfully moved rule '{rule_name}' to deleted_rules directory",
-                    "moved_rule": best_match,
-                }
-            else:
-                return {
-                    "success": False,
-                    "message": f"Rule file not found: {rule_name}",
-                }
-
         except Exception as e:
-            logger.error(f"Error moving rule: {str(e)}")
-            return {"success": False, "message": f"Error moving rule: {str(e)}"}
+            logger.error(f"Error in _delete_rule: {str(e)}")
+            return {"success": False, "message": f"Error deleting rule: {str(e)}"}
 
     @log_decorator("search_rules")
     def _search_rules(self, args):
@@ -550,8 +475,9 @@ class DroolsLLMAgent:
             logger.debug(f"Searching with query: {args['query']}")
             result = search_rules(
                 query=args["query"],
-                rules_dir=self.rules_dir,
                 api_key=self.api_key,
+                client=self.client,
+                collection_name=self.collection_name
             )
 
             logger.info(

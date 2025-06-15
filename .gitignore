@@ -51,3 +51,6 @@ htmlcov/
 
 # Chat sessions
 chat_sessions/
+
+# Rules
+rules/

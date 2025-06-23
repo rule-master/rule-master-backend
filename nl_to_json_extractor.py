@@ -49,48 +49,50 @@ class NLToJsonExtractor:
         Returns:
             str: "drl" or "gdst"
         """
-        # Convert to lowercase for case-insensitive matching
-        input_lower = user_input.lower()
+        # # Convert to lowercase for case-insensitive matching
+        # input_lower = user_input.lower()
         
-        # Check for explicit mentions of decision table or GDST
-        if any(term in input_lower for term in ["decision table", "gdst", "guided decision", "decision matrix"]):
-            return "gdst"
+        # # Check for explicit mentions of decision table or GDST
+        # if any(term in input_lower for term in ["decision table", "gdst", "guided decision", "decision matrix"]):
+        #     return "gdst"
         
-        # Check for multiple ranges or thresholds
-        range_patterns = [
-            r'between\s+\d+\s+and\s+\d+',
-            r'\d+\s*-\s*\d+',
-            r'from\s+\d+\s+to\s+\d+',
-            r'less than\s+\d+.*?greater than\s+\d+',
-            r'if\s+.*?\d+.*?else if\s+.*?\d+'
-        ]
+        # # Check for multiple ranges or thresholds
+        # range_patterns = [
+        #     r'between\s+\d+\s+and\s+\d+',
+        #     r'\d+\s*-\s*\d+',
+        #     r'from\s+\d+\s+to\s+\d+',
+        #     r'less than\s+\d+.*?greater than\s+\d+',
+        #     r'if\s+.*?\d+.*?else if\s+.*?\d+'
+        # ]
         
-        range_count = 0
-        for pattern in range_patterns:
-            range_count += len(re.findall(pattern, input_lower))
+        # range_count = 0
+        # for pattern in range_patterns:
+        #     range_count += len(re.findall(pattern, input_lower))
         
-        # If multiple ranges are found, it's likely a GDST
-        if range_count >= 2:
-            return "gdst"
+        # # If multiple ranges are found, it's likely a GDST
+        # if range_count >= 2:
+        #     return "gdst"
         
-        # Check for multiple similar conditions
-        condition_indicators = ["if", "when", "condition"]
-        condition_count = sum(input_lower.count(indicator) for indicator in condition_indicators)
+        # # Check for multiple similar conditions
+        # condition_indicators = ["if", "when", "condition"]
+        # condition_count = sum(input_lower.count(indicator) for indicator in condition_indicators)
         
-        # Check for multiple similar actions
-        action_indicators = ["then", "assign", "set", "add"]
-        action_count = sum(input_lower.count(indicator) for indicator in action_indicators)
+        # # Check for multiple similar actions
+        # action_indicators = ["then", "assign", "set", "add"]
+        # action_count = sum(input_lower.count(indicator) for indicator in action_indicators)
         
-        # If there are multiple conditions and actions, it's likely a GDST
-        if condition_count >= 3 and action_count >= 3:
-            return "gdst"
+        # # If there are multiple conditions and actions, it's likely a GDST
+        # if condition_count >= 3 and action_count >= 3:
+        #     return "gdst"
         
-        # Check for multiple rows or entries
-        if any(term in input_lower for term in ["row", "rows", "entry", "entries"]) and any(number in input_lower for number in ["multiple", "several", "many"]):
-            return "gdst"
+        # # Check for multiple rows or entries
+        # if any(term in input_lower for term in ["row", "rows", "entry", "entries"]) and any(number in input_lower for number in ["multiple", "several", "many"]):
+        #     return "gdst"
         
-        # Default to DRL for simpler rules
-        return "drl"
+        # # # Default to DRL for simpler rules
+        # # return "drl" 
+        # # Default to GDST for all cases since drl is not supported
+        return "gdst"
     
     def extract_to_json(self, user_input: str, rule_type: str = "gdst", java_classes_map: Dict[str, Dict] = None) -> Dict[str, Any]:
         """
@@ -447,11 +449,9 @@ Your response should be:
             str: Prompt section for BRL conditions
         """
         return """**2. BRLConditionColumn:**
-You must always create two BRLCondition entries for binding the requisite Java bean instances. Additionally, when a user provides a complex expression (e.g., eval(...)) or free form condition, you must include a BRLCondition entry in conditionsBRL.
+You must always create two BRLCondition entries for instantiation the requisite Java bean instances.
 
-IMPORTANT: All BRLCondition entries MUST be placed in the "conditionsBRL" array, NOT in "conditionPatterns".
-
-*   **EmployeeRecommendation binding (Required):**
+*   **EmployeeRecommendation instantiation (Required):**
     ```json
     {
       "type": "BRLCondition",
@@ -477,7 +477,7 @@ IMPORTANT: All BRLCondition entries MUST be placed in the "conditionsBRL" array,
       }
     }
     ```
-*   **RestaurantData binding (Required):**
+*   **RestaurantData binding instantiation (Required):**
     ```json
     {
       "type": "BRLCondition",
@@ -503,7 +503,7 @@ IMPORTANT: All BRLCondition entries MUST be placed in the "conditionsBRL" array,
       }
     }
     ```
-*   **Complex BRL Condition (Optional - Use for eval/free-form):**
+*   **Complex BRL Condition (use it only if the user provides a condition with complex boolean expression (e.g. arithmetic, custom utility calls, Java `LocalTime` comparisons or parsing e.g. LocalTime.parse()) requiring `eval(...)`. never use for simple field comparisons conditions that doesn't require arithmetic calculation or custom utility calls):**
     ```json
     {
       "type": "BRLCondition",
@@ -513,7 +513,7 @@ IMPORTANT: All BRLCondition entries MUST be placed in the "conditionsBRL" array,
       "constraintValueType": 1,
       "parameters": "",
       "definition": [
-        {"text": "eval(<YOUR_BOOLEAN_EXPRESSION_HERE>)"}
+        {"text": "eval(<YOUR_COMPLEX_BOOLEAN_EXPRESSION_HERE>)"}
       ],
       "childColumns": {
         "BRLConditionVariableColumn": {
@@ -534,11 +534,18 @@ IMPORTANT: All BRLCondition entries MUST be placed in the "conditionsBRL" array,
       }
     }
     ```
+    - **IMPORTANT GUIDELINES:**
+      - if the condition provided by user only includes a Java-bean field with no arithmetic calculation, then this shouldn't be converted to BRLCondition, instead it should be converted to Pattern condition.
+        > e.g. if condition provided by user is (totalExpected is between 100 and 300), then this shouldn't be converted to BRLCondition, instead it should be converted to Pattern condition.
+        > e.g. if condition provided by user is (totalExpected is greater than 100), then this shouldn't be converted to BRLCondition, instead it should be converted to Pattern condition.
+        > e.g. if condition provided by user is (restaurantSize == "M"), then this shouldn't be converted to BRLCondition, instead it should be converted to Pattern condition.
+        > e.g. if condition provided by user is (totalExpectedSales % 2 == 0), then this should be converted to BRLCondition because there is arithmetic calculation involved.
+        > e.g. if condition provided by user is (getcalculationDateTime().toLocalTime() &gt;= LocalTime.parse(&quot;@{targetTime}&quot;)), then this should be converted to BRLCondition because there is complex comparison involved using external library `LocalTime`.
     - **Field Explanations:**
       - `type`: Always set "type": "BRLCondition".
       - `width`, `hidden`, `constraintValueType`, `parameters`: Always use exactly "width": -1, "hidden": false, "constraintValueType": 1, and "parameters": "".
       - `header`: Fill in a brief description of what this condition does.
-      - `definition.text`: Must start with eval( and end with )—the entire Boolean expression goes inside. use resturantData binding when calling getter method ex. eval(restaurantData.getCalculationDateTime().toLocalTime() &gt;= LocalTime.parse(&quot;@{targetTime}&quot;))
+      - `definition.text`: Must start with eval( and end with )—the entire complex Boolean expression goes inside (e.g. arithmetic, custom utility calls, Java `LocalTime` comparisons or parsing e.g. LocalTime.parse()). use resturantData binding when calling getter method e.g. eval(restaurantData.getCalculationDateTime().toLocalTime() &gt;= LocalTime.parse(&quot;@{targetTime}&quot;))
       - `childColumns.BRLConditionVariableColumn`: Always include a single BRLConditionVariableColumn with appropriate typedDefaultValue.
       - `varName`: Must match exactly any placeholder used inside your eval(...) string. If no placeholder is used, choose any meaningful varName.
 
@@ -588,12 +595,12 @@ Whenever you need to create a "Pattern" entry (i.e., a standard Drools Pattern52
 }
 ```
 - **IMPORTANT GUIDELINES:**
-  1. Range Conditions (Two Operators)
-    - Rule: Whenever a user describes a numeric “range” (e.g. “sales between 0 and 100,” “sales between 100 and 200,” etc.), you must emit exactly one Pattern object for that factType/property.
-    - Inside that Pattern: include two "conditions" entries:
+  **1. Range Conditions (Two Operators)**
+    - **One Pattern per field**: whenever the user gives a numeric range for the same property (e.g. expected total sales between 300 and 500), emit exactly one Pattern entry.
+    - Within that Pattern: define **two** "conditions" entries:
       a. One with "operator": ">="
       b. One with "operator": "<"
-    - Do not repeat the Pattern for each possible numeric interval. Keep one Pattern per “property” that uses both operators.
+    - **Do not** repeat the Pattern for each interval; intervals are driven by data rows.
     - Leave every typedDefaultValue empty (valueNumeric/valueString fields as null or empty) so that specific numbers will be filled in later by data rows.
     - Example → Range Condition for totalExpectedSales on RestaurantSales:
 ```json
@@ -741,10 +748,19 @@ Whenever you need to create a "Pattern" entry (i.e., a standard Drools Pattern52
 }
 ```
 - **IMPORTANT GUIDELINES**
-  - Emit exactly one BRLAction object per RestaurantRecommendation action method,(e.g. addRestaurantEmployees, setRestaurantEmployees), not once per data‐row.
-  - Do not replicate the same <definition> + <childColumns> block for every row—define it once under "actionColumns" and then supply each row’s argument in "data.values".
+  - **One BRLAction per method**: 
+    - For each RestaurantRecommendation Java-bean action method (e.g. `addRestaurantEmployees` or `setRestaurantEmployees`), emit exactly one entry under `"actionColumns"`.
+    - **Never** repeat that actionColumns entry for each data row.
+    - Do not replicate the same <definition> + <childColumns> block for every row; define it once under "actionColumns" and then supply each row’s argument in "data.values".
   - **BRLAction Columns** must **never** contain conditional or branching logic.
   – Do **not** repeat or inline any `if(...)` statements inside `actionColumns.definition`.
+  - **How to choose the correct method**:
+    Based on the provided user intent, determine which method to use from the Java-bean Employee Recommendation methods:
+      > e.g.If the user says "add extra" employees, use the `addRestaurantExtraEmployees` method.
+      > e.g. If the user says "add" employees, use the `addRestaurantEmployees` method.
+      > e.g. If the user says "set" employees, use the `setRestaurantEmployees` method.
+      > e.g. If the user says "set" extra employees, use the `setRestaurantExtraEmployees` method.
+      > e.g. If the user says "set" home delivery employees, use the `setHomeDeliveryEmployees` method.
 - **Field Explanations:**
   - `type`: Always set "type": "BRLAction" when defining a Free-Form action on a DRL fact via a Java-bean method call.
   - `width`: The column's width in the guided decision table. Use 100 by default.
@@ -1002,7 +1018,7 @@ Below is a template for a single row. Copy this structure exactly and fill in ea
    - salience: "columnName": "salience", "value": an integer (e.g. 100), "dataType": "NUMERIC_INTEGER"
    - recommendation binding: "columnName": "recommendation", "value": true/false (in practice, always true if you want that rule to fire), "dataType": "BOOLEAN"
    - restaurantData binding: "columnName": "restaurantData", "value": true/false (usually true), "dataType": "BOOLEAN"
-   - pattern-based conditions: One object per Pattern52 condition-column52, in the order they were defined
+   - pattern-based conditions: One object per Pattern52 condition-column52, in the order they were defined. 'columnName' should be exactly the same as the "header" in the condition-column52.
    - complex BRLCondition expressions: Include if the row uses a FreeFormLine/EVAL clause
    - action variable values: One object per BRLActionVariableColumn, in the same order
 
@@ -1124,19 +1140,16 @@ If you do have a FreeFormLine/EVAL for "even dailySales," insert it just before 
    - Pattern entries MUST be placed in the "conditionPatterns" array.
    - EVERY condition and action column MUST include a "typedDefaultValue" object with appropriate fields.
    
-6. CRITICAL SCHEMA REQUIREMENTS:
+6. WHEN TO USE CONDITION PATTERNS VS BRL CONDITIONS:
    - **conditionPatterns** holds every simple field‐comparison:
      • Single‐operator tests (==, !=, >, <, ≥, ≤).  
      • Ranges (≥ lower AND < upper) — exactly one Pattern object with two columns.  
-     **Do not** wrap these in `eval(...)` or in BRLCondition.
+     • **Do not** wrap these in `eval(...)` or in BRLCondition.
    - **conditionsBRL** is reserved only for:
-     • Fact‐instantiations/bindings (EmployeeRecommendation(), RestaurantData(), etc.).  
-     • Complex expressions requiring `eval(...)` or external libraries methods (e.g. `LocalTime.parse()`).
+     > Fact‐instantiations (`recommendation : EmployeeRecommendation()`, `restaurantData : RestaurantData()`).
+     > Complex expressions (e.g. arithmetic, custom utility calls, Java `LocalTime` comparisons or parsing e.g. LocalTime.parse()) requiring `eval(...)`.
 
-7. WHEN TO USE CONDITION PATTERNS VS BRL CONDITIONS:
-
-   **conditionPatterns** (plain field checks)
-   - Simple equals:  
+   - Example on using **conditionPatterns** for any simple field checks:
      ```json
     "conditionPatterns": [
     {
@@ -1169,7 +1182,7 @@ If you do have a FreeFormLine/EVAL for "even dailySales," insert it just before 
      ```
      *Data rows then supply “small”, “medium”, “large” under that one Pattern.*
 
-   - Numeric ranges:
+   - example on using **conditionPatterns** for numeric ranges, *Only one Pattern, two condition‐columns*:
      ```jsonc
     "conditionPatterns": [
     {
@@ -1219,12 +1232,9 @@ If you do have a FreeFormLine/EVAL for "even dailySales," insert it just before 
     }
   ]
      ```
-     *Only one Pattern, two condition‐columns.*
 
-   **conditionsBRL** (complex or binding tests)
-   - Always include two BRLCondition entries (bindings) first:
-   - Use further BRLCondition only for `eval(...)` or library calls.
-   ```json eval example
+  - example on using bindings in **conditionsBRL** and `eval(...)` for complex arithmetic operations:
+   ```json eval example 
    {
       "type": "BRLCondition",
       "width": -1,
@@ -1254,7 +1264,7 @@ If you do have a FreeFormLine/EVAL for "even dailySales," insert it just before 
       }
     }
    ```
-   ```json complex eval example
+   ```json eval example for LocalTime parsing:
    {
       "type": "BRLCondition",
       "width": -1,

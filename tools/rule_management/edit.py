@@ -15,6 +15,8 @@ from logger_utils import logger
 from openai import OpenAI
 from rag_setup import index_new_rule
 from pathlib import Path
+from qdrant_client import QdrantClient
+
 
 # Import the NL to JSON extractor
 from nl_to_json_extractor import NLToJsonExtractor
@@ -139,33 +141,33 @@ def create_consolidated_update_prompt(original_prompt: str, update_input: str) -
 
 Your task: given  
   1. an **original rule description** in natural language, and  
-  2. a **user update instruction** (e.g. “make the lower bound 8 instead of 5,” “add a new condition for holiday hours,” “change salience to 80,” etc.),  
+  2. a **user update instruction** (e.g. "make the lower bound 8 instead of 5," "add a new condition for holiday hours," "change salience to 80," etc.),  
 
 you must emit a **single, revised rule description**—still in English—that applies exactly that change (and only that change), preserving everything else exactly as before.
 
 **How to handle conditions and actions:**  
-- **Users will describe conditions and actions in plain English.** You don’t need to know any Drools internals—just find the sentence(s) that mention that condition or action and update or insert accordingly.  
-- **To update an existing condition**, locate its English phrasing (“If sales are between 5 and 10…” → “If sales are between 8 and 10…”) and rewrite just that part.  
-- **To add a new condition**, append it in the same style: “If [field] [operator] [value], then [action].”  
-- **To change an action**, find the clause (“assign 2 extra employees”) and swap in the new verb or number.  
-- **To change salience**, find “Salience is X” (or “priority X”) and replace X.  
+- **Users will describe conditions and actions in plain English.** You don't need to know any Drools internals—just find the sentence(s) that mention that condition or action and update or insert accordingly.  
+- **To update an existing condition**, locate its English phrasing ("If sales are between 5 and 10…" → "If sales are between 8 and 10…") and rewrite just that part.  
+- **To add a new condition**, append it in the same style: "If [field] [operator] [value], then [action]."  
+- **To change an action**, find the clause ("assign 2 extra employees") and swap in the new verb or number.  
+- **To change salience**, find "Salience is X" (or "priority X") and replace X.  
 - **Never re‐explain or re‐order** other parts of the rule—only inject or adjust the exact piece the user asked for.  
 
 **Examples**
 
 _Example A_  
 - **Original:**  
-  “Create a rule that assigns 5 employees if sales are between 0 and 5, and 2 employees if sales are between 5 and 10. Salience is 50.”  
-- **Instruction:** “Make the lower bound of the second range 6 instead of 5.”  
+  "Create a rule that assigns 5 employees if sales are between 0 and 5, and 2 employees if sales are between 5 and 10. Salience is 50."  
+- **Instruction:** "Make the lower bound of the second range 6 instead of 5."  
 - **Output:**  
-  “Create a rule that assigns 5 employees if sales are between 0 and 5, and 2 employees if sales are between 6 and 10. Salience is 50.”
+  "Create a rule that assigns 5 employees if sales are between 0 and 5, and 2 employees if sales are between 6 and 10. Salience is 50."
 
 _Example B_  
 - **Original:**  
-  “Create a rule named HolidayStaffing that adds 3 extra employees for holiday hours. Salience is 60.”  
-- **Instruction:** “Also add a condition for weekend hours to add 2 extra employees.”  
+  "Create a rule named HolidayStaffing that adds 3 extra employees for holiday hours. Salience is 60."  
+- **Instruction:** "Also add a condition for weekend hours to add 2 extra employees."  
 - **Output:**  
-  “Create a rule named HolidayStaffing that adds 3 extra employees for holiday hours, and adds 2 extra employees for weekend hours. Salience is 60.”
+  "Create a rule named HolidayStaffing that adds 3 extra employees for holiday hours, and adds 2 extra employees for weekend hours. Salience is 60."
 """
     
     # Create user prompt with the original prompt and update input
@@ -423,6 +425,79 @@ def edit_rule(user_input: str, java_classes_map: Dict[str, Dict], file_name: str
             rule_name = new_json_data.get("tableName", "unnamed_table")
         
         logger.info(f"Edit operation completed successfully for rule: {rule_name}")
+
+        # Initialize OpenAI client
+        client = OpenAI(api_key=api_key)
+
+        # Reindex the updated rule (update existing point instead of creating new one)
+        collection_name = "drools-rule-examples"
+        
+        # First, find and delete the old index entry
+        qdrant_client = QdrantClient(
+            url=os.getenv("QDRANT_URL", "http://localhost:6333"),
+            api_key=os.getenv("QDRANT_API_KEY"),
+        )
+        
+        # Determine the old filename that should be in the index
+        # Use the original file_name parameter (which could be with or without extension)
+        old_filename = file_name
+        if not old_filename.lower().endswith(('.gdst', '.drl')):
+            # Add the appropriate extension based on rule type
+            old_filename = f"{old_filename}.{rule_type}"
+        
+        logger.info(f"Looking for old index entry with filename: {old_filename}")
+        
+        # Search for the old rule entry
+        search_result = qdrant_client.scroll(
+            collection_name=collection_name,
+            limit=100,
+            with_payload=True,
+            with_vectors=False
+        )
+        
+        # Find the point with matching filename
+        point_id = None
+        logger.info(f"Found {len(search_result[0])} total points in collection")
+        
+        for point in search_result[0]:
+            payload_filename = point.payload.get("filesystem_filename", "")
+            logger.info(f"Checking payload filename: {payload_filename} against: {old_filename}")
+            
+            # Try exact match first
+            if payload_filename == old_filename:
+                point_id = point.id
+                logger.info(f"Found exact matching point with ID: {point_id}")
+                break
+            
+            # Try matching without extension
+            if payload_filename and old_filename:
+                payload_base = os.path.splitext(payload_filename)[0]
+                old_base = os.path.splitext(old_filename)[0]
+                if payload_base == old_base:
+                    point_id = point.id
+                    logger.info(f"Found base name matching point with ID: {point_id}")
+                    break
+        
+        if point_id is not None:
+            # Delete the old entry
+            qdrant_client.delete(
+                collection_name=collection_name,
+                points_selector=[point_id]
+            )
+            logger.info(f"Deleted old index entry for: {old_filename}")
+        else:
+            logger.warning(f"No old index entry found for: {old_filename}")
+            logger.info("Available filenames in collection:")
+            for point in search_result[0]:
+                logger.info(f"  - {point.payload.get('filesystem_filename', 'NO_FILENAME')}")
+        
+        # Now add the new entry with updated content
+        index_new_rule(
+            client=client,
+            collection_name=collection_name,
+            file_path=new_drools_path,
+            refined_prompt=updated_prompt
+        )
         
         # Return success response
         return {

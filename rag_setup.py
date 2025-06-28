@@ -97,133 +97,133 @@ def embed_text(text: str, client: OpenAI = None) -> list:
         return avg.tolist()
 
 
-def reindex_single_point(
-    client: OpenAI, collection_name: str, file_title: str, rules_dir: str
-):
-    """
-    Reindex a single point in the collection by file title.
+# def reindex_single_point(
+#     client: OpenAI, collection_name: str, file_title: str, rules_dir: str
+# ):
+#     """
+#     Reindex a single point in the collection by file title.
 
-    Args:
-        client (OpenAI): OpenAI client instance
-        collection_name (str): Name of the collection
-        file_title (str): Title of the file to reindex (without extension)
-        rules_dir (str): Directory containing the rule files
-    """
-    # Initialize Qdrant client
-    qdrant_client = QdrantClient(
-        url=os.getenv("QDRANT_URL", "http://localhost:6333"),
-        api_key=os.getenv("QDRANT_API_KEY"),
-    )
+#     Args:
+#         client (OpenAI): OpenAI client instance
+#         collection_name (str): Name of the collection
+#         file_title (str): Title of the file to reindex (without extension)
+#         rules_dir (str): Directory containing the rule files
+#     """
+#     # Initialize Qdrant client
+#     qdrant_client = QdrantClient(
+#         url=os.getenv("QDRANT_URL", "http://localhost:6333"),
+#         api_key=os.getenv("QDRANT_API_KEY"),
+#     )
 
-    # Try both .drl and .gdst extensions
-    for ext in [".drl", ".gdst"]:
-        file_path = os.path.join(rules_dir, f"{file_title}{ext}")
-        if os.path.exists(file_path):
-            # Read the rule content
-            with open(file_path, "r", encoding="utf-8") as f:
-                rule_content = f.read()
+#     # Try both .drl and .gdst extensions
+#     for ext in [".drl", ".gdst"]:
+#         file_path = os.path.join(rules_dir, f"{file_title}{ext}")
+#         if os.path.exists(file_path):
+#             # Read the rule content
+#             with open(file_path, "r", encoding="utf-8") as f:
+#                 rule_content = f.read()
 
-            # Try to load metadata if it exists
-            metadata_path = os.path.join(rules_dir, f"{file_title}_metadata.json")
-            refined_prompt = rule_content
-            if os.path.exists(metadata_path):
-                try:
-                    with open(metadata_path, "r") as f:
-                        metadata = json.load(f)
-                        refined_prompt = metadata.get(
-                            "refined_user_prompt", rule_content
-                        )
-                except Exception as e:
-                    print(f"Warning: Could not load metadata for {file_path}: {str(e)}")
+#             # Try to load metadata if it exists
+#             metadata_path = os.path.join(rules_dir, f"{file_title}_metadata.json")
+#             refined_prompt = rule_content
+#             if os.path.exists(metadata_path):
+#                 try:
+#                     with open(metadata_path, "r") as f:
+#                         metadata = json.load(f)
+#                         refined_prompt = metadata.get(
+#                             "refined_user_prompt", rule_content
+#                         )
+#                 except Exception as e:
+#                     print(f"Warning: Could not load metadata for {file_path}: {str(e)}")
 
-            # Create the embedding
-            emb = embed_text(rule_content, client)
+#             # Create the embedding from the refined prompt (not rule content)
+#             emb = embed_text(refined_prompt, client)
 
-            # Prepare the metadata
-            payload = {
-                "filesystem_filename": os.path.basename(file_path),
-                "refined_prompt": refined_prompt,
-            }
+#             # Prepare the metadata
+#             payload = {
+#                 "filesystem_filename": os.path.basename(file_path),
+#                 "refined_prompt": refined_prompt,
+#                 "rule_content": rule_content,  # Store rule content as additional metadata
+#             }
 
-            # Create a unique ID for the point
-            point_id = str(uuid.uuid4())
+#             # Create a unique ID for the point
+#             point_id = str(uuid.uuid4())
 
-            # Upsert the point
-            qdrant_client.upsert(
-                collection_name=collection_name,
-                points=[
-                    PointStruct(
-                        id=point_id,
-                        vector=emb,
-                        payload=payload,
-                    )
-                ],
-            )
+#             # Upsert the point
+#             qdrant_client.upsert(
+#                 collection_name=collection_name,
+#                 points=[
+#                     PointStruct(
+#                         id=point_id,
+#                         vector=emb,
+#                         payload=payload,
+#                     )
+#                 ],
+#             )
 
-            print(
-                f"Successfully reindexed rule {file_title} into collection {collection_name}"
-            )
-            return
+#             print(
+#                 f"Successfully reindexed rule {file_title} into collection {collection_name}"
+#             )
+#             return
 
-    print(f"Warning: Could not find rule file for {file_title} in {rules_dir}")
+#     print(f"Warning: Could not find rule file for {file_title} in {rules_dir}")
 
 
-def reindex_collection(
-    client: OpenAI, collection_name: str, rule_content: str, metadata: dict
-):
-    """
-    Index a single rule with its metadata into the collection.
+# def reindex_collection(
+#     client: OpenAI, collection_name: str, rule_content: str, metadata: dict
+# ):
+#     """
+#     Index a single rule with its metadata into the collection.
 
-    Args:
-        client (OpenAI): OpenAI client instance
-        collection_name (str): Name of the collection to index into
-        rule_content (str): The content of the rule to index
-        metadata (dict): Metadata for the rule, containing at least:
-            - filesystem_filename: Name of the rule file
-            - refined_user_prompt: The refined user prompt
-    """
-    # Initialize Qdrant client
-    qdrant_client = QdrantClient(
-        url=os.getenv("QDRANT_URL", "http://localhost:6333"),
-        api_key=os.getenv("QDRANT_API_KEY"),
-    )
+#     Args:
+#         client (OpenAI): OpenAI client instance
+#         collection_name (str): Name of the collection to index into
+#         metadata (dict): Metadata for the rule, containing at least:
+#             - filesystem_filename: Name of the rule file
+#             - refined_user_prompt: The refined user prompt (used for embedding)
+#     """
+#     # Initialize Qdrant client
+#     qdrant_client = QdrantClient(
+#         url=os.getenv("QDRANT_URL", "http://localhost:6333"),
+#         api_key=os.getenv("QDRANT_API_KEY"),
+#     )
 
-    # Create the embedding for the rule content
-    emb = embed_text(rule_content, client)
+#     # Create the embedding from the refined prompt (not rule content)
+#     emb = embed_text(metadata["refined_user_prompt"], client)
 
-    # Get the filesystem-friendly version
-    filesystem_filename = metadata["filesystem_filename"].replace(" ", "_")
+#     # Get the filesystem-friendly version
+#     filesystem_filename = metadata["filesystem_filename"].replace(" ", "_")
 
-    # Prepare the metadata with the correct format
-    payload = {
-        "filesystem_filename": filesystem_filename,
-        "refined_prompt": metadata["refined_user_prompt"],
-    }
+#     # Prepare the metadata with the correct format
+#     payload = {
+#         "filesystem_filename": filesystem_filename,
+#         "refined_prompt": metadata["refined_user_prompt"],
+#         "rule_content": rule_content,  # Store rule content as additional metadata
+#     }
 
-    # Create a unique ID for the point
-    point_id = str(uuid.uuid4())
+#     # Create a unique ID for the point
+#     point_id = str(uuid.uuid4())
 
-    # Upsert the point
-    qdrant_client.upsert(
-        collection_name=collection_name,
-        points=[
-            PointStruct(
-                id=point_id,
-                vector=emb,
-                payload=payload,
-            )
-        ],
-    )
+#     # Upsert the point
+#     qdrant_client.upsert(
+#         collection_name=collection_name,
+#         points=[
+#             PointStruct(
+#                 id=point_id,
+#                 vector=emb,
+#                 payload=payload,
+#             )
+#         ],
+#     )
 
-    print(
-        f"Successfully indexed rule {filesystem_filename} into collection {collection_name}"
-    )
+#     print(
+#         f"Successfully indexed rule {filesystem_filename} into collection {collection_name}"
+#     )
 
 
 def index_new_rule(
     client: OpenAI, 
-    collection_name: str, 
-    rule_content: str, 
+    collection_name: str,
     file_path: str,
     refined_prompt: str
 ):
@@ -233,9 +233,8 @@ def index_new_rule(
     Args:
         client (OpenAI): OpenAI client instance
         collection_name (str): Name of the collection
-        rule_content (str): The content of the rule to index
         file_path (str): Path to the rule file
-        refined_prompt (str): The refined user prompt
+        refined_prompt (str): The refined user prompt (used for embedding)
     """
     # Initialize Qdrant client
     qdrant_client = QdrantClient(
@@ -243,8 +242,8 @@ def index_new_rule(
         api_key=os.getenv("QDRANT_API_KEY"),
     )
 
-    # Create the embedding
-    emb = embed_text(rule_content, client)
+    # Create the embedding from the refined prompt (not rule content)
+    emb = embed_text(refined_prompt, client)
 
     # Get the filesystem-friendly filename
     filesystem_filename = os.path.basename(file_path)

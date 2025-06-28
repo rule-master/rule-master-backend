@@ -5,6 +5,6 @@ This module provides functionality to search for similar Drools rules using Qdra
 with OpenAI embeddings.
 """
 
-from .rule_management import search_rules, delete_rule
+from .rule_management import search_rules, delete_rule, edit_rule
 
-__all__ = ['search_rules', 'delete_rule']
+__all__ = ['search_rules', 'delete_rule', 'edit_rule']

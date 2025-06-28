@@ -19,8 +19,6 @@ from nl_to_json_extractor import NLToJsonExtractor
 
 # Import the JSON to Drools converter
 from json_to_drools_converter import convert_json_to_drools
-# Import the RAG setup
-from rag_setup import index_new_rule
 
 def generate_file_name_with_llm(user_input: str, java_classes_map: Dict[str, Dict]) -> str:
     """
@@ -175,7 +173,7 @@ def add_rule(user_input: str, java_classes_map: Dict[str, Dict]) -> Dict[str, An
     
     # Get directories from environment variables
     rules_directory = os.environ.get("RULES_DIRECTORY", "./rules/active_rules")
-    rules_prompt_directory = os.environ.get("RULES_PROMPT_DIRECTORY", "./rules/active_prompts")
+    rules_prompt_directory = os.environ.get("RULES_PROMPT_DIRECTORY", "./rules/active_rules_prompt")
     
     logger.info(f"API key: {api_key}")
     logger.info(f"Rules directory: {rules_directory}")
@@ -224,32 +222,18 @@ def add_rule(user_input: str, java_classes_map: Dict[str, Dict]) -> Dict[str, An
             rule_name = json_schema.get("tableName", "unnamed_table")
         
         logger.info(f"Add operation completed successfully for rule: {rule_name}")
-        
-        #  # Get the GDST content for indexing
-        # try:
-        #     # First try UTF-8
-        #     with open(output_path, "r", encoding="utf-8") as f:
-        #         gdst_content = f.read()
-        # except UnicodeDecodeError:
-        #     try:
-        #         # If UTF-8 fails, try latin-1 (which can read any byte)
-        #         with open(output_path, "r", encoding="latin-1") as f:
-        #             gdst_content = f.read()
-        #     except Exception as e:
-        #         raise Exception(f"Failed to read GDST file with both UTF-8 and latin-1 encodings: {str(e)}")
 
-        # # Initialize OpenAI client if not provided
-        # if client is None:
-        #     client = OpenAI(api_key=api_key)
+        # Initialize OpenAI client
+        client = OpenAI(api_key=api_key)
 
-        # # Index the new rule
-        # index_new_rule(
-        #     client=client,
-        #     collection_name=collection_name,
-        #     rule_content=gdst_content,
-        #     file_path=output_path,
-        #     refined_prompt=user_input
-        # )
+        # Index the new rule
+        collection_name = "drools-rule-examples"
+        index_new_rule(
+            client=client,
+            collection_name=collection_name,
+            file_path=output_path,
+            refined_prompt=user_input
+        )
         
         # Return success response
         return {

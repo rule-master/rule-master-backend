@@ -5,6 +5,8 @@ This module provides functionality to delete rules from both the filesystem and 
 """
 
 import os
+import shutil
+import datetime
 from typing import Dict, Any
 from logger_utils import logger, log_decorator
 from .search import search_rules
@@ -13,7 +15,7 @@ from qdrant_client import QdrantClient
 @log_decorator("delete_rule")
 def delete_rule(
     rule_name: str,
-    rules_dir: str = "rules",
+    rules_dir: str = None,
     api_key: str = None,
     confirm: bool = True
 ) -> Dict[str, Any]:
@@ -22,7 +24,7 @@ def delete_rule(
 
     Args:
         rule_name (str): Name of the rule to delete
-        rules_dir (str): Directory containing the rules
+        rules_dir (str): Directory containing the rules (if None, uses RULES_DIRECTORY env var)
         api_key (str, optional): OpenAI API key. If not provided, will use environment variable.
         confirm (bool): If True, skip confirmation prompt
         search_results (Dict, optional): Pre-computed search results. If not provided, will search for the rule.
@@ -32,6 +34,22 @@ def delete_rule(
     """
     try:
         logger.info(f"Starting delete rule: {rule_name}")
+    
+        rules_directory = os.environ.get("RULES_DIRECTORY", "./rules/active_rules")
+        old_rules_directory = os.environ.get("OLD_RULES_DIRECTORY", "./rules/old_rules")
+        rules_prompt_directory = os.environ.get("RULES_PROMPT_DIRECTORY", "./rules/active_rules_prompt")
+        old_rules_prompt_directory = os.environ.get("OLD_RULES_PROMPT_DIRECTORY", "./rules/old_rules_prompt")
+        
+        logger.info(f"Using rules directory: {rules_directory}")
+        logger.info(f"Using old rules directory: {old_rules_directory}")
+        logger.info(f"Using rules prompt directory: {rules_prompt_directory}")
+        logger.info(f"Using old rules prompt directory: {old_rules_prompt_directory}")
+        
+        # Create directories if they don't exist (same as edit.py)
+        os.makedirs(rules_directory, exist_ok=True)
+        os.makedirs(old_rules_directory, exist_ok=True)
+        os.makedirs(rules_prompt_directory, exist_ok=True)
+        os.makedirs(old_rules_prompt_directory, exist_ok=True)
         
         # Use provided search results or search for the rule
         search_results = search_rules(rule_name, api_key=api_key)
@@ -72,41 +90,50 @@ def delete_rule(
                 "message": f"Could not find any rules matching '{rule_name}'. Please check the rule name and try again."
             }
 
-        # Get confirmation from user unless confirm flag is set
-        if not confirm:
-            response = input(
-                f"Are you sure you want to delete the rule '{matching_rule['filesystem_filename']}'? (y/N): "
-            )
-            if response.lower() != "y":
-                return {
-                    "success": False,
-                    "message": "Deletion cancelled by user."
-                }
-
-        # Ensure deleted_rules directory exists
-        deleted_rules_dir = os.path.join(rules_dir, "deleted_rules")
-        os.makedirs(deleted_rules_dir, exist_ok=True)
-
-        # Move both GDST and JSON files to deleted_rules directory
+        # Proceed with deletion (confirmation handled at agent level)
+        logger.info(f"Proceeding with deletion of rule: {matching_rule['filesystem_filename']}")
+        
+        # Get the base name for file operations (same as edit.py)
         base_name = os.path.splitext(matching_rule["filesystem_filename"])[0]
-        gdst_path = os.path.join(rules_dir, f"{base_name}.gdst")
-        json_path = os.path.join(rules_dir, f"{base_name}.json")
+        logger.info(f"Base name for file operations: {base_name}")
         
         moved_files = []
         
-        # Move GDST file
+        # Move GDST file to old_rules_directory (same pattern as edit.py)
+        gdst_path = os.path.join(rules_directory, f"{base_name}.gdst")
         if os.path.exists(gdst_path):
-            dest_gdst = os.path.join(deleted_rules_dir, f"{base_name}.gdst")
-            os.rename(gdst_path, dest_gdst)
+            # Use version_file pattern but with old directory
+            ts = datetime.datetime.now().strftime("%Y%m%d_%H%M")
+            dest_gdst = os.path.join(old_rules_directory, f"{base_name}_{ts}.gdst")
+            shutil.move(gdst_path, dest_gdst)
             moved_files.append(f"{base_name}.gdst")
             logger.info(f"Moved GDST file from {gdst_path} to {dest_gdst}")
+        else:
+            logger.warning(f"GDST file not found at: {gdst_path}")
         
-        # Move JSON file
+        # Move JSON file to old_rules_directory (same pattern as edit.py)
+        json_path = os.path.join(rules_directory, f"{base_name}.json")
         if os.path.exists(json_path):
-            dest_json = os.path.join(deleted_rules_dir, f"{base_name}.json")
-            os.rename(json_path, dest_json)
+            # Use version_file pattern but with old directory
+            ts = datetime.datetime.now().strftime("%Y%m%d_%H%M")
+            dest_json = os.path.join(old_rules_directory, f"{base_name}_{ts}.json")
+            shutil.move(json_path, dest_json)
             moved_files.append(f"{base_name}.json")
             logger.info(f"Moved JSON file from {json_path} to {dest_json}")
+        else:
+            logger.warning(f"JSON file not found at: {json_path}")
+        
+        # Move prompt file to old_rules_prompt_directory (same pattern as edit.py)
+        prompt_path = os.path.join(rules_prompt_directory, f"{base_name}.txt")
+        if os.path.exists(prompt_path):
+            # Use version_file pattern but with old directory
+            ts = datetime.datetime.now().strftime("%Y%m%d_%H%M")
+            dest_prompt = os.path.join(old_rules_prompt_directory, f"{base_name}_{ts}.txt")
+            shutil.move(prompt_path, dest_prompt)
+            moved_files.append(f"{base_name}.txt")
+            logger.info(f"Moved prompt file from {prompt_path} to {dest_prompt}")
+        else:
+            logger.warning(f"Prompt file not found at: {prompt_path}")
 
         if not moved_files:
             logger.warning(f"No files found to move for rule: {matching_rule['filesystem_filename']}")
@@ -156,7 +183,7 @@ def delete_rule(
 
         return {
             "success": True,
-            "message": f"Successfully moved rule files to deleted_rules directory: {', '.join(moved_files)}"
+            "message": f"Successfully moved rule files to old_rules directory: {', '.join(moved_files)}"
         }
 
     except Exception as e:

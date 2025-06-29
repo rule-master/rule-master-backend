@@ -147,7 +147,7 @@ you must emit a **single, revised rule description**—still in English—that a
 
 **How to handle conditions and actions:**  
 - **Users will describe conditions and actions in plain English.** You don't need to know any Drools internals—just find the sentence(s) that mention that condition or action and update or insert accordingly.  
-- **To update an existing condition**, locate its English phrasing ("If sales are between 5 and 10…" → "If sales are between 8 and 10…") and rewrite just that part.  
+- **To update an existing condition**, locate its English phrasing ("If sales are between 5 and 10…" → "If sales are between 8 and 10…") (if restaurant size is large then set employees to 5 -> if restaurant size is large then set employees to 10) and rewrite just that part.  
 - **To add a new condition**, append it in the same style: "If [field] [operator] [value], then [action]."  
 - **To change an action**, find the clause ("assign 2 extra employees") and swap in the new verb or number.  
 - **To change salience**, find "Salience is X" (or "priority X") and replace X.  

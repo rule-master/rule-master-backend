@@ -510,7 +510,7 @@ def edit_rule(user_input: str, java_classes_map: Dict[str, Dict], file_name: str
             "new_prompt": str(new_prompt_path),
             "version": new_json_data["version"],
             "download_url": f"https://capstone.burhan.ai/rules/{os.path.basename(new_drools_path)}",
-            "message": f"Successfully edited {rule_type.upper()} rule '{rule_name}' (version {new_json_data['version']}). Download: https://capstone.burhan.ai/rules/{os.path.basename(output_path)}"
+            "message": f"Successfully edited {rule_type.upper()} rule '{rule_name}' (version {new_json_data['version']}). Download: https://capstone.burhan.ai/rules/{os.path.basename(new_drools_path)}"
         }
     
     except Exception as e:

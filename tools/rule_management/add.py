@@ -243,7 +243,8 @@ def add_rule(user_input: str, java_classes_map: Dict[str, Dict]) -> Dict[str, An
             "file_path": output_path,
             "json_path": json_file_path,
             "prompt_path": prompt_file_path,
-            "message": f"Successfully created {rule_type.upper()} rule '{rule_name}'"
+            "download_url": f"https://capstone.burhan.ai/rules/{os.path.basename(output_path)}",
+            "message": f"Successfully created {rule_type.upper()} rule '{rule_name}'.  Download: https://capstone.burhan.ai/rules/{os.path.basename(output_path)}"
         }
     
     except Exception as e:

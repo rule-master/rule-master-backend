@@ -47,7 +47,7 @@ def is_port_available(port: int) -> bool:
     """Check if a port is available."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
-            s.bind(("localhost", port))
+            s.bind(("0.0.0.0", port))
             return True
         except:
             return False
@@ -82,7 +82,7 @@ def start_streamlit():
         print(f"\n{'='*50}")
         print(f"Starting Streamlit server...")
         print(f"Once started, you can access the UI at:")
-        print(f"http://localhost:{port}")
+        print(f"http://0.0.0.0:{port}")
         print(f"{'='*50}\n")
 
         # Build Popen kwargs dynamically
@@ -106,7 +106,7 @@ def start_streamlit():
                 "--server.port",
                 str(port),
                 "--server.address",
-                "localhost",
+                "0.0.0.0",
                 "--server.headless",
                 "true",
                 "--browser.gatherUsageStats",
@@ -141,13 +141,13 @@ def start_streamlit():
                 return
 
             print(f"\nStreamlit is running successfully!")
-            print(f"Open your browser and navigate to: http://localhost:{port}")
+            print(f"Open your browser and navigate to: http://0.0.0.0:{port}")
             print(f"{'='*50}")
 
         except subprocess.TimeoutExpired:
             # Process is still running after timeout, which is good
             print(f"\nStreamlit is running successfully!")
-            print(f"Open your browser and navigate to: http://localhost:{port}")
+            print(f"Open your browser and navigate to: http://0.0.0.0:{port}")
             print(f"{'='*50}")
 
     except Exception as e:

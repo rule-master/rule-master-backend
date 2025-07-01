@@ -45,7 +45,7 @@ class DroolsLLMAgent:
             self.client = OpenAI(api_key=api_key)
             self.model = model
             self.api_key = api_key
-            self.collection_name = 'drools-rule-examples'
+            self.collection_name = 'rule-master-dev'
             logger.debug("OpenAI client initialized")
 
             # Set up directories

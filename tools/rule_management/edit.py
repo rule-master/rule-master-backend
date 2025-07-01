@@ -430,7 +430,7 @@ def edit_rule(user_input: str, java_classes_map: Dict[str, Dict], file_name: str
         client = OpenAI(api_key=api_key)
 
         # Reindex the updated rule (update existing point instead of creating new one)
-        collection_name = "drools-rule-examples"
+        collection_name = "rule-master-dev"
         
         # First, find and delete the old index entry
         qdrant_client = QdrantClient(

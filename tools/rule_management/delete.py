@@ -151,7 +151,7 @@ def delete_rule(
             
             # First search for the point using a payload filter
             search_result = qdrant_client.scroll(
-                collection_name="drools-rule-examples",
+                collection_name="rule-master-dev",
                 limit=100,  # Get a reasonable number of points
                 with_payload=True,
                 with_vectors=False
@@ -167,7 +167,7 @@ def delete_rule(
             if point_id is not None:
                 # Delete using the point ID
                 qdrant_client.delete(
-                    collection_name="drools-rule-examples",
+                    collection_name="rule-master-dev",
                     points_selector=[point_id]
                 )
                 logger.info(f"Deleted rule from Qdrant: {matching_rule['filesystem_filename']}")

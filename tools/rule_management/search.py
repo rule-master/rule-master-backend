@@ -17,7 +17,7 @@ load_dotenv()
 # Get Qdrant configuration from environment
 QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
-COLLECTION_NAME = "drools-rule-examples"
+COLLECTION_NAME = "rule-master-dev"
 
 def get_embedding(
     text: str, client: OpenAI, model: str = "text-embedding-3-large"

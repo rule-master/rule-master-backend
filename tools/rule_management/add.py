@@ -227,7 +227,7 @@ def add_rule(user_input: str, java_classes_map: Dict[str, Dict]) -> Dict[str, An
         client = OpenAI(api_key=api_key)
 
         # Index the new rule
-        collection_name = "drools-rule-examples"
+        collection_name = "rule-master-dev"
         index_new_rule(
             client=client,
             collection_name=collection_name,

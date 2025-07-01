@@ -26,7 +26,7 @@ import numpy as np
 #   QDRANT_URL       - your Qdrant Cloud REST endpoint (e.g. https://<..>.us-qdrant.cloud)
 #   QDRANT_API_KEY   - your Qdrant Cloud API key
 # Constants:
-COLLECTION_NAME = "drools-rule-examples"
+COLLECTION_NAME = "rule-master-dev"
 EMBEDDING_MODEL = "text-embedding-3-large"  # OpenAI embedding model
 VECTOR_SIZE = 3072  # Dimension of the chosen embedding model
 

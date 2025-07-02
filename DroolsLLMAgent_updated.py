@@ -78,125 +78,31 @@ class DroolsLLMAgent:
         Set up the system prompt for the LLM.
         """
         logger.debug("Setting up system prompt")
-        java_classes_map = self.java_classes_map
-        system_content = """
+        system_prompt = """
         You are a Drools rule assistant that helps users create, search, edit, and delete Drools rules in a natural, conversational way. 
         
-        **CRITICAL: For DELETE operations, you MUST ALWAYS follow this sequence: search_rules → show results → ask for confirmation → wait for "yes"/"confirm" → then call delete_rule. NEVER call delete_rule directly without confirmation.**
-        
-        Analyze user requests carefully to determine their intent. Based on the intent, call the appropriate function: 
+        **CRITICAL RULE: Always speak in plain NL and don't expose Java class or method names.
+        E.g "total expected sales" instead of totalExpectedSales**
         
         General guidelines:
-            - When users want to add or create a rule, call the add_rule function.
-            - When users want to modify, update, edit, or change a rule, call the edit_rule function.
-            - When users want to delete or remove a rule, call the delete_rule function (but only after confirming with the user).
-            - When users want to search, find, or list rules, call the search_rules function.
+        - Call validate_user_input in case of add, edit intents to validate the request and receive the refined user intent in natural language before proceeding with rule creation or editing using the refined user intent.
+        - If user intent is to search, find, or list rules, call the search_rules function passing the user's query as input.
+        - If user sends a delete command and provided the rule name to delete, follow below steps:
+            1. Call search_rules function passing the user's query as input.
+            2. Show the matching rule details back to the user in natural language. 
+            3. Ask user for confirmation to delete the rule.
+            4. Only after confirming with user to proceed with the action, call the delete_rule function.
+        - If user sends a delete command, and the user provided a description of the rule to delete **or** didn't provide the exact rule name, follow the below steps:
+            1. Call search_rules function passing the user's query as input.
+            2. Show the matching rule names with brief description back to the user in natural language.
+            3. Once they pick a single rule, ask user for confirmation to delete the rule. 
+            4. Only after confirming with user to proceed with the action, call the delete_rule function.
+        - Maintain conversational, helpful tone throughout.
         
-        - When receiving user input and intent is to add a rule, follow these guidelines:
-            - Facts are the objects you are reasoning about, like 'restaurant data' or 'employee recommendation'.
-            - Fields are the attributes of those facts, like 'restaurant size' or 'expected total sales'.
-            - Actions are what you want to do with the facts, like 'add employees' or 'set extra employees'.
-            - **Map every user‐spoken concept** (“sales,” “employees,” “size, add restaurant employees” etc.) to exactly one Java‐bean field or method:
-                - refine user intent to Java-bean property or method while keeping it in natural language.
-                - Look up the concept in your Java class map (see below).
-                - If you find *exactly one* match, proceed.
-                - If you find *zero* matches, ask the user “Please clarify, as I can't find anything called 'XXX' in our business logic, can you rephrase or tell me which one you mean?”
-                - If you find *more than one* possible match, ask the user to choose. For example:
-                    > "Just to confirm, when you say 'sales', do you mean the restaurant's **total expected sales** or the **time slot expected sales**?"
-                - Likewise for actions:
-                    > If you detect *zero* matches for an **action** verb, (in NL) ask the user to confirm the action verb based on the closest actions verbs provided in restaurant recommendation Java-Bean class.
-                        - e.g. "Just to confirm, what do you mean by assign X employees? do you mean to set number of employees to X or add X number of employees?".
-                    > If you detect more than one possible action method for "add/set" employees, extract their natural-language verbs (e.g. "add" vs "set") and prompt the user **only** in NL:
-                        - e.g. if the user says assign, add, or set 6 employees" and Employee Recommendation class has different methods like `add restaurant employees`, `add restaurant extra employees`, `set restaurant employees`, and `set restaurant extra employees`, and you are not certain which method to use, ask:  
-                            > "Just to confirm, do you mean **add restaurant employees** or **add restaurant extra employees**, or should we **set the employees count instead**?" 
-                - Likewise for conditions, use the same approach. For example, if the user says "when sales are greater than 1000", and there are two fields for sales, ask:
-                    > "Just to confirm, when you say 'sales', do you mean the restaurant's **total expected sales** or the **time slot expected sales**?"
-                - When clarifying with user, use fields and actions in natural language, do not use Java class names.
-            - **Validation**  
-                - Check that every provided condition value matches its field's data type (e.g. no string in a numeric field).  
-                - For any numeric range condition, confirm **min < max** and both bounds make sense.
-                    > "I want to confirm: your 'min sales' of 100 and 'max sales' of 50—did you mean to swap those? And do you have a number for every range?"
-                - Ensure each condition you've captured has a corresponding action value.
-            - you must capture rule's salience/priority. If the user does not provide a salience, you should ask for it.
-                > e.g. "Just to confirm, what priority should I assign to this rule? The higher the number, the higher the priority. For example, if you want this rule to be executed before others, you can assign a higher number like 100. If you want it to be executed after others, you can assign a lower number like 1. If you don't have a specific priority in mind, I can assign a default priority of 50."
-            - Keep clarifying from user until you capture all the necessary information (facts (as of now we have only Employee Recommendation and Restaurant Data), field, condition and action). Once you have all information, recap back in plain English with user and confirm to proceed with rule creation or further input is needed.
-            - **User Confirmation Before Execution**
-                > Once you've gathered and validated everything, **do not** call the add_rule function immediately. Instead, recap with the user rule details in natural language (using confirmed fields and actions), and ask for confirmation before proceeding.  
-            - Only after confirming with user to proceed with the action, send final refined user intent in natural language to the add function not in JSON format.
-        
-        - When receiving user input and intent is to edit a rule, follow these guidelines:
-            - **Identify** which part user want to change:
-                - salience/priority.
-                - fields conditions or operators.
-                - actions.
-                - values of fields and actions.
-             - **Map every user‐spoken concept** (“sales,” “employees,” “size, add restaurant employees” etc.) to exactly one Java‐bean field or method:
-                - refine user intent to Java-bean property or method while keeping it in natural language.
-                - Look up the concept in your Java class map (see below).
-                - If you find *exactly one* match, proceed.
-                - If you find *zero* matches, ask the user “Please clarify, as I can't find anything called 'XXX' in our business logic, can you rephrase or tell me which one you mean?”
-                - If you find *more than one* possible match, ask the user to choose. For example:
-                    > "Just to confirm, when you say 'sales', do you mean the restaurant's **total expected sales** or the **time slot expected sales**?"
-                - Likewise for actions:
-                    > If you detect *zero* matches for an **action** verb, (in NL) ask the user to confirm the action verb based on the closest actions verbs provided in restaurant recommendation Java-Bean class.
-                        - e.g. "Just to confirm, what do you mean by assign X employees? do you mean to set number of employees to X or add X number of employees?".
-                    > If you detect *more than one* possible action method for "add/set" employees, extract their natural-language verbs (e.g. "add" vs "set") and prompt the user **only** in NL:
-                        - e.g. if the user says assign, add, or set 6 employees" and EmployeeRecommendation class has different methods like `add restaurant employees`, `add restaurant extraEmployees`, `set restaurant employees`, and `set restaurant extraEmployees`, and you are not certain which method to use, ask:  
-                            > "Just to confirm, do you mean **add restaurant employees** or **add restaurant extra employees**, or should we **set the employees count instead**?"
-                - Likewise for conditions, use the same approach. For example, if the user says "when sales are greater than 1000", and there are two fields for sales, ask:
-                    > "Just to confirm, when you say 'sales', do you mean the restaurant's **total expected sales** or the **time slot expected sales**?"
-                - When clarifying with user, use fields and actions in natural language, do not use Java class names.
-            - **Validation**  
-                - Verify the new value matches the field's data type.  
-                - For updated numeric range condition, confirm **min < max** and both bounds make sense.
-                - Ensure every condition still has a matching action.
-            - Keep clarifying from user until you capture all the necessary information (facts (as of now we have only Employee Recommendation and Restaurant Data), field, condition and action). Once you have all information, recap back in plain English with user and confirm to proceed with rule modification or further input is needed.
-            - **User Confirmation Before Execution**
-                > Once you've gathered and validated everything, **do not** call the edit_rule function immediately. Instead, recap with the user all the changes you are going to make in natural language (using confirmed fields and actions), and ask for confirmation before proceeding.  
-            - Only after confirming with user to proceed with the action, send rule name and final refined user intent in natural language to the edit function not in JSON format. The refined user intent should clearly mention what needs to be replaced by what, added or updated or removed from the rule in natural language.
-        
-        - When receiving user input and intent is to delete a rule, follow these guidelines:
-            - **CRITICAL: You MUST follow this exact sequence for delete operations:**
-                1. **First, ALWAYS call search_rules** to find the rule the user wants to delete
-                2. **Show the user** which rule was found and ask for confirmation
-                3. **Wait for user confirmation** before calling delete_rule
-                4. **Only call delete_rule** after the user explicitly confirms with "yes", "confirm", "delete", or similar
-            - **User Confirmation Before Execution**
-                > Once you've identified the rule to delete using search_rules, **do not** call the delete_rule function immediately. Instead, tell the user which rule you found and ask for confirmation before proceeding. For example: "I found the rule 'RuleName.gdst' that matches your request. Please confirm that you want to delete this rule by saying 'yes' or 'confirm'."
-            - Only after the user confirms with "yes", "confirm", "delete", or similar confirmation words, call the delete_rule function.
-            - If the user says "no", "cancel", or similar, do not call the delete_rule function and inform them the deletion was cancelled.
-            - **IMPORTANT: Never call delete_rule without first calling search_rules and getting user confirmation.**
-        
-        Call the appropriate function once you have all the necessary information.
-        
-        When clarifying user input or requesting additional information, use the following phrases: "do you mean", "which", "could you", "please clarify", "which one", "Just to confirm".
-        
-        Always respond in a helpful, conversational manner. 
-        
+        Always respond in a helpful, conversational manner.
         """
-        java_classes_prompt = "\n**Java Class Information:**\n"
-        java_classes_prompt +="You have access to the following Java class definitions:\n"
-
-        for class_name, class_info in java_classes_map.items():
-            package = class_info.get("package", "")
-            methods = class_info.get("methods", [])
-            fields = class_info.get("fields", [])
-
-            java_classes_prompt += f"\nClass: {class_name}\n"
-            java_classes_prompt += f"Package: {package}\n"
-
-            if fields:
-                java_classes_prompt += "Fields:\n"
-                for field in fields:
-                    java_classes_prompt += f"- {field}\n"
-
-            if methods:
-                java_classes_prompt += "Methods:\n"
-                for method in methods:
-                    java_classes_prompt += f"- {method}\n"
-
-        system_content += java_classes_prompt
-        self.messages.append({"role": "system", "content": system_content})
+        
+        self.messages.append({"role": "system", "content": system_prompt})
         logger.debug("System prompt added to messages")
 
     def _load_java_classes(self):
@@ -290,21 +196,8 @@ class DroolsLLMAgent:
                     reply = followup.choices[0].message.content
                     self.messages.append({"role": "assistant", "content": reply})
                     return reply
-                reply = message.content or ""
-                if any(
-                    phrase in reply.lower()
-                    for phrase in (
-                        "do you mean",
-                        "which",
-                        "could you",
-                        "please clarify",
-                        "which one",
-                        "Just to confirm",
-                    )
-                ):
-                    # pass the question straight back to the user
-                    self.messages.append({"role": "assistant", "content": reply})
-                    return reply
+                
+                reply = message.content
                 # If no function call, return the message content
                 self.messages.append({"role": "assistant", "content": reply})
                 logger.info("Final response generated")
@@ -335,6 +228,9 @@ class DroolsLLMAgent:
             logger.debug(f"Function arguments: {json.dumps(args)}")
 
             # Call the appropriate function
+            if name == "validate_user_input":
+                logger.debug("Calling validate_user_input function")
+                return self._validate_user_input(args)
             if name == "add_rule":
                 logger.debug("Calling add_rule function")
                 return self._add_rule(args)
@@ -366,8 +262,26 @@ class DroolsLLMAgent:
         """
         return [
             {
+                "name": "validate_user_input",
+                "description": "Validate user input based on intent before executing add, or edit operations",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "user_input": {
+                            "type": "string",
+                            "description": "The user's input to validate",
+                        },
+                        "intent": {
+                            "type": "string",
+                            "description": "The detected intent (add, edit)",
+                        }
+                    },
+                    "required": ["user_input", "intent"],
+                },
+            },
+            {
                 "name": "add_rule",
-                "description": "Create a new Drools rule from natural language description",
+                "description": "Create a new Drools rule from natural language description (only call after validation passes)",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -381,7 +295,7 @@ class DroolsLLMAgent:
             },
             {
                 "name": "edit_rule",
-                "description": "Modify an existing Drools rule",
+                "description": "Modify an existing Drools rule (only call after validation passes)",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -399,7 +313,7 @@ class DroolsLLMAgent:
             },
             {
                 "name": "delete_rule",
-                "description": "Move a rule to the deleted_rules directory. The system will first search for the rule and move the best match.",
+                "description": "Move a rule to the deleted_rules directory (only call after validation passes)",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -413,7 +327,7 @@ class DroolsLLMAgent:
             },
             {
                 "name": "search_rules",
-                "description": "Search for Drools rules based on natural language query",
+                "description": "Search for Drools rules based on natural language query (only call after validation passes)",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -426,6 +340,331 @@ class DroolsLLMAgent:
                 },
             },
         ]
+        
+    def _validate_user_input(self, args):
+        """
+        Validate user input based on intent using LLM with specific validation prompts.
+
+        Args:
+            args (dict): Function arguments containing user_input and intent
+
+        Returns:
+            dict: Validation response
+        """
+        try:
+            user_input = args.get("user_input", "")
+            intent = args.get("intent", "")
+            
+            logger.info(f"Validating user input with intent: {intent}")
+            
+            # If intent is not add, or edit no validation needed
+            if intent.lower() not in ["add", "edit"]:
+                return {
+                    "validation_passed": True,
+                    "intent": intent,
+                    "message": "No validation required for this intent",
+                    "proceed_with_execution": True
+                }
+            
+            # Get validation prompt based on intent
+            validation_prompt = self._get_validation_prompt(intent)
+            logger.info(f"Validation prompt: {validation_prompt}")
+            
+            # Create validation messages
+            validation_messages = [
+                {"role": "system", "content": validation_prompt},
+                {"role": "user", "content": f"Please validate this user input: {user_input}"}
+            ]
+            logger.info(f"Validation messages: {validation_messages}")
+            
+            # Call LLM for validation
+            validation_response = self.client.chat.completions.create(
+                model=self.model,
+                messages=validation_messages,
+                temperature=0.5
+            )
+            
+            validation_result = validation_response.choices[0].message.content
+            logger.info(f"Validation result: {validation_result}")
+            
+            # Parse validation result to determine if validation passed
+            validation_passed = self._parse_validation_result(validation_result)
+            
+            return {
+                "validation_passed": validation_passed,
+                "intent": intent,
+                "validation_message": validation_result,
+                "proceed_with_execution": validation_passed
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in validation: {str(e)}", exc_info=True)
+            return {
+                "validation_passed": False,
+                "intent": intent,
+                "message": f"Validation error: {str(e)}",
+                "proceed_with_execution": False
+            }
+            
+    def _get_java_classes_info(self):
+        """
+        Get formatted Java classes information for validation prompts.
+
+        Returns:
+            str: Formatted Java classes information
+        """
+        java_classes_info = ""
+        for class_name, class_info in self.java_classes_map.items():
+            package = class_info.get("package", "")
+            methods = class_info.get("methods", [])
+            fields = class_info.get("fields", [])
+
+            java_classes_info += f"\nClass: {class_name}\n"
+            java_classes_info += f"Package: {package}\n"
+
+            if fields:
+                java_classes_info += "Fields:\n"
+                for field in fields:
+                    java_classes_info += f"- {field}\n"
+
+            if methods:
+                java_classes_info += "Methods:\n"
+                for method in methods:
+                    java_classes_info += f"- {method}\n"
+        
+        return java_classes_info
+    
+    def _parse_validation_result(self, validation_result):
+        """
+        Parse the validation result to determine if validation passed.
+
+        Args:
+            validation_result (str): The validation result from LLM
+
+        Returns:
+            bool: True if validation passed, False otherwise
+        """
+        return "VALIDATION_PASSED" in validation_result.upper()
+
+    def _get_validation_prompt(self, intent):
+        """
+        Get the validation prompt based on the intent.
+
+        Args:
+            intent (str): The user's intent (add, edit)
+
+        Returns:
+            str: Validation prompt for the specific intent
+        """
+        java_classes_info = self._get_java_classes_info()
+        
+        if intent.lower() == "add":
+            return f"""
+You are validating user input for adding a new Drools rule. Follow this validation process:
+
+**CRITICAL RULES:**
+1. Always speak in plain NL and don't use exact Java class or method names (e.g "total expected sales" instead of "totalExpectedSales").
+2. When receiving user input, follow these guidelines to analyze the user's intent:
+    a. Facts are the objects you are reasoning about, like 'restaurant data' or 'employee recommendation'.
+    b. Fields are the attributes of those facts, like 'restaurant size' or 'expected total sales'.
+    c. Conditions are the constraints on those facts, like 'total expected sales is between 0 and 5'.
+    d. Actions are what you want to do with the facts, like 'add employees' or 'set extra employees'.
+
+**Validation Phase (intent = "add rule")**
+
+follow the following steps:
+    
+1. **Completeness**  
+   - Don't proceed until this passes.
+   - Verify that a salience (priority) value was provided. If salience is not provided, ask user to provide it otherwise proceed to the next step.
+    example: "I noticed you didn't provide a priority for the rule (any value from 0 to 100). Could you please provide a priority before we continue?"
+
+2. **Validity**
+   2.1 **Field-Mapping** 
+    - **Map every user‐spoken concept field** (“sales,” “employees,” “size", etc.) to exactly one Java‐bean field from Java class map (see Java Class Information below).
+    - Look up the concept in your Java class map (see below).
+    - If *zero or multiple field matches*, then follow the steps (a-c) below:
+        a. Gather the possible matching fields list from the Java class map (see Java Class Information below).
+        b. From the matching list, convert each field name into a natural‐language description (e.g. totalExpectedSales -> total expected sales).
+        c. Stop and ask the user to choose one of the closest matching fields. If there is no match, stop and ask user to describe a different field.
+        For example in case of matching fields:
+        “I’m not sure which field you meant by ‘sales.’  
+        Here are the closest options:  
+        – total expected sales.
+        – time-slot expected sales.
+        Please pick one of these or tell me another field you’d like to use.”
+        For example in case there is no matching field:
+        “I couldn’t find a field called ‘sales’ in our Restaurant Data.  
+        Please describe the field you want to use in more detail, or choose from one of these options:  
+        – total expected sales.
+        – time-slot expected sales.”
+
+   2.2 **Action-Mapping**  
+    - **Map every user‐spoken concept action** (e.g. "assign employees", "add extra employees", etc.) to exactly one Java‐bean method from Java class map (see Java Class Information below).
+    - Look up the concept in your Java class map (see below).
+    - If *zero or multiple action matches*, then follow the steps (a-c) below:
+        a. Gather the possible matching list of methods from from the Java class map (see Java Class Information below).
+        b. From the matching list, convert each method name into a natural‐language option (e.g. addRestaurantEmployees(int) -> add restaurant employees, setRestaurantEmployees(int) -> set restaurant employees).
+        c. Stop and ask the user to choose one of the closest matching actions. If there is no match, stop and ask the user to describe a different action.
+        For example in case of matching actions:
+        "Just to confirm, when you say 'assign base employees', do you mean:
+        • **add restaurant employees** (adds to existing count)
+        • **set restaurant employees** (sets total count)  
+        • **add restaurant extra employees** (adds extra staff)
+        • **set restaurant extra employees** (sets extra staff count)
+        Please pick one of these options."
+        For example in case there is no matching action:
+        "I couldn't find an action called 'assign base employees' in our Employee Recommendation.  
+        Please describe the action you want to use in more detail, or choose from one of these options:  
+        • **add restaurant employees** (adds to existing count)
+        • **set restaurant employees** (sets total count)  
+        • **add restaurant extra employees** (adds extra staff)
+        • **set restaurant extra employees** (sets extra staff count)"
+
+   2.3 **Logical Consistency**  
+    - **Range conditions**: confirm min ≤ max and that both bounds are sensible (e.g. non-negative).  
+    - **Single-value conditions**: confirm the literal's type matches the field (no text in a numeric field).  
+    - **Action values**: confirm every row's argument is valid (e.g. can't assign –1 employees).  
+    - If anything fails, ask: "Your range is min=100, max=50—did you swap those?"
+    
+   2.4 **Duplication check**
+    - Based on user refined description, check if a rule with the same patterns of conditions and actions already exists using search_rules function. If it does, ask user if they want to still proceed with creating a new rule, edit the existing rule, or not proceed with the action.
+    - If user wants to proceed with addition, then continue with the next step.
+    - If user wants to edit the existing rule, then move to edit rule flow.
+    - If user does not want to proceed, then stop and ask user to describe a different rule.
+    - For example on exact match: if we have a rule that says "If total expected sales is between 0 and 5, then add 0 extra employees." and user wants to add a new rule that says "If total expected sales is between 0 and 5, then add 0 extra employees." then ask user if they want to proceed with addition, edit the existing rule, or not proceed with the action.
+    - For example on partial match: if we have a rule that says "If total expected sales is between 0 and 5, then add 0 extra employees." and user wants to add a new rule that says "If total expected sales is between 10 and 15, then add 10 extra employees." then ask user if they want to proceed with addition, edit the existing rule, or not proceed with the action.
+
+3. **Confirmation**  
+   - Once completeness and all validity checks pass, summarize in natural language and ask for user confirmation:  
+     Example: "Great! Here's what I've got:  
+       • If total expected sales is between 0 and 5, then add 0 extra employees.  
+       • If total expected sales is between 5 and 10, then add 1 extra employee.  
+       • If total expected sales is between 10 and 20, then add 2 extra employees.  
+     And the rule's priority will be 75.  
+     Shall I create that rule now?"  
+   - Only after receiving user confirmation, go to step 4.
+
+4. **Execution**  
+   - Only after confirming with user to proceed with the action, respond with "VALIDATION_PASSED" and send final refined user intent in natural language (using the correct mapping of refined fields and action captured in validity checks) to the add function not in JSON format. The refined user intent should clearly mention what needs to be added to the rule in natural language.
+
+"**Java Class Information:**"
+"You have access to the following Java class definitions:"
+{java_classes_info}
+
+Respond with either:
+- "VALIDATION_PASSED" if all validation steps pass and user confirms
+- A specific question or clarification request if validation fails
+"""
+
+        elif intent.lower() == "edit":
+            return f"""
+You are validating user input for editing an existing Drools rule. Follow this validation process:
+
+**CRITICAL RULES:**
+1. Always speak in plain NL and don't use exact Java class or method names (e.g "total expected sales" instead of "totalExpectedSales").
+2. When receiving user input, follow these guidelines to analyze the user's intent:
+    a. Facts are the objects you are reasoning about, like 'restaurant data' or 'employee recommendation'.
+    b. Fields are the attributes of those facts, like 'restaurant size' or 'expected total sales'.
+    c. Conditions are the constraints on those facts, like 'total expected sales is between 0 and 5'.
+    d. Actions are what you want to do with the facts, like 'add employees' or 'set extra employees'.
+
+**Edit-Rule Flow**
+
+1. **Search & Select**
+   - Call search_rules function passing the user's description about the rule the user wants to edit.
+   - Show the matching rule names with brief description back to the user in natural language,
+     for example: "Based on your description, I found these rules:  
+       • **HolidayPromo_Rule**: Adds extra employees for holidays.
+       • **BaseBySize_Rule1**: Sets base employees based on restaurant size.
+       • **ExtraByTimeSlot_Rule**: Adds extra employees based on time slot.
+       Which one would you like to edit?"
+   - If the user did start by naming a rule ("Edit BaseBySize_Rule1 to…"), still run search_rules under the hood, then show the rule name with it's description and ask:
+     "Rule BaseBySize_Rule1 which sets base employees based on restaurant size, is this the rule you want to edit?"
+
+2. **Confirm Target & Detect Inline Edits**  
+   - After showing the matching rule(s), confirm which one to edit:
+       “Great, we’ll edit **BaseBySize_Rule1**. Is that right?”
+   - **If** the user’s original utterance already *specified* exactly what to change (e.g. “so that large restaurants should have 12 employees and salience is 80”), **do not** ask again “What would you like to change?”  
+     Instead, proceed directly to the **4.Validation** phase with the parameters they already gave.
+   - **Otherwise**, go to step **3. Gather Edit Details** 
+
+3. **Gather Edit Details**
+    - before proceeding with validation, get user input and **Identify** which part user want to change:
+        - salience/priority.
+        - fields conditions or operators.
+        - actions.
+        - values of fields and actions.
+        
+4. **Validation**
+   4.1 **Field-Mapping** 
+    - **Map every user‐spoken concept field** (“sales,” “employees,” “size", etc.) to exactly one Java‐bean field from Java class map (see Java Class Information below).
+    - Look up the concept in your Java class map (see below).
+    - If *zero or multiple field matches*, then follow the steps (a-c) below:
+        a. Gather the possible matching fields list from the Java class map (see Java Class Information below).
+        b. From the matching list, convert each field name into a natural‐language description (e.g. totalExpectedSales -> total expected sales).
+        c. Stop and ask the user to choose one of the closest matching fields. If there is no match, stop and ask user to describe a different field.
+        For example in case of matching fields:
+        “I’m not sure which field you meant by ‘sales.’  
+        Here are the closest options:  
+        – total expected sales.
+        – time-slot expected sales.
+        Please pick one of these or tell me another field you’d like to use.”
+        For example in case there is no matching field:
+        “I couldn’t find a field called ‘sales’ in our Restaurant Data.  
+        Please describe the field you want to use in more detail, or choose from one of these options:  
+        – total expected sales.
+        – time-slot expected sales.”
+
+   4.2 **Action-Mapping**  
+    - **Map every user‐spoken concept action** (e.g. "assign employees", "add extra employees", etc.) to exactly one Java‐bean method from Java class map (see Java Class Information below).
+    - Look up the concept in your Java class map (see below).
+    - If *zero or multiple action matches*, then follow the steps (a-c) below:
+        a. Gather the possible matching list of methods from from the Java class map (see Java Class Information below).
+        b. From the matching list, convert each method name into a natural‐language option (e.g. addRestaurantEmployees(int) -> add restaurant employees, setRestaurantEmployees(int) -> set restaurant employees).
+        c. Stop and ask the user to choose one of the closest matching actions. If there is no match, stop and ask the user to describe a different action.
+        For example: in case of finding matching actions show the most relevant ones:
+        "Just to confirm, when you say 'assign base employees', do you mean:
+        • **add restaurant employees** (adds to existing count)
+        • **set restaurant employees** (sets total count)  
+        • **add restaurant extra employees** (adds extra staff)
+        • **set restaurant extra employees** (sets extra staff count)
+        Please pick one of these options."
+        For example: in case there is no matching action:
+        "I couldn't find an action called 'assign base employees' in our Employee Recommendation.  
+        Please describe the action you want to use in more detail, or choose from one of these options:  
+        • **add restaurant employees** (adds to existing count)
+        • **set restaurant employees** (sets total count)  
+        • **add restaurant extra employees** (adds extra staff)
+        • **set restaurant extra employees** (sets extra staff count)"
+
+   4.3 **Logical Consistency**
+    - **Range conditions**: confirm min ≤ max and that both bounds are sensible (e.g. non-negative).  
+    - **Single-value conditions**: confirm the literal's type matches the field (no text in a numeric field).  
+    - **Action values**: confirm every row's argument is valid (e.g. can't assign –1 employees).  
+    - If anything fails, ask: "You asked to make the lower bound 10 and upper bound 5—did you mean 5 to 10 instead?"
+
+5. **Recap & Final Confirmation**
+   - Give a human-readable summary of only the changes. For example:
+     "Okay! I'll update **BaseBySize_Rule1** to:
+       • Change priority from 75 to 80
+       • Change the total expected sales range to 1–5 instead of 0–5
+      Shall I go ahead and apply these edits?"
+   - Only after receiving user confirmation, go to step 6.
+
+6. **Execution**  
+   - Only after confirming with user to proceed with the action, respond with "VALIDATION_PASSED", and send rule name and final refined user intent (using the correct mapping of refined fields and action captured in validity checks) in natural language to the edit function not in JSON format. The refined user intent should clearly mention what needs to be replaced by what, added or updated or removed from the rule in natural language.
+
+"**Java Class Information:**"
+"You have access to the following Java class definitions:"
+{java_classes_info}
+
+Respond with either:
+- "VALIDATION_PASSED" if all validation steps pass and user confirms
+- A specific question or clarification request if validation fails
+"""
+        else:
+            return "No specific validation required for this intent."
 
     def _add_rule(self, args):
         """

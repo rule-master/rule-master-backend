@@ -595,7 +595,182 @@ Whenever you need to create a "Pattern" entry (i.e., a standard Drools Pattern52
 }
 ```
 - **IMPORTANT GUIDELINES:**
-  **1. Range Conditions (Two Operators)**
+  **1. Do **not** repeat the pattern dictionary for every row for the same factField.**
+  For Example, don not do this (multiple dictionaries for timeSlotExpectedSales):
+  ```json
+  "conditionPatterns": [
+    {
+      "type": "Pattern",
+      "factType": "RestaurantData",
+      "boundName": "RestaurantData",
+      "isNegated": false,
+      "conditions": [
+        {
+          "typedDefaultValue": {
+            "valueString": "",
+            "dataType": "NUMERIC_DOUBLE",
+            "isOtherwise": false
+          },
+          "header": "Max Time Slot Sales",
+          "factField": "timeSlotExpectedSales",
+          "operator": "<",
+          "fieldType": "Double",
+          "hidden": false,
+          "width": 100,
+          "parameters": "",
+          "binding": ""
+        },
+        {
+          "typedDefaultValue": {
+            "valueString": "",
+            "dataType": "NUMERIC_DOUBLE",
+            "isOtherwise": false
+          },
+          "header": "Min Time Slot Sales",
+          "factField": "timeSlotExpectedSales",
+          "operator": ">=",
+          "fieldType": "Double",
+          "hidden": false,
+          "width": 100,
+          "parameters": "",
+          "binding": ""
+        }
+      ],
+      "window": {
+        "parameters": ""
+      }
+    },
+    {
+      "type": "Pattern",
+      "factType": "RestaurantData",
+      "boundName": "RestaurantData",
+      "isNegated": false,
+      "conditions": [
+        {
+          "typedDefaultValue": {
+            "valueString": "",
+            "dataType": "NUMERIC_DOUBLE",
+            "isOtherwise": false
+          },
+          "header": "Max Partial Sales",
+          "factField": "timeSlotExpectedSales",
+          "operator": "<",
+          "fieldType": "Double",
+          "hidden": false,
+          "width": 100,
+          "parameters": "",
+          "binding": ""
+        },
+        {
+          "typedDefaultValue": {
+            "valueString": "",
+            "dataType": "NUMERIC_DOUBLE",
+            "isOtherwise": false
+          },
+          "header": "Min Partial Sales",
+          "factField": "timeSlotExpectedSales",
+          "operator": ">=",
+          "fieldType": "Double",
+          "hidden": false,
+          "width": 100,
+          "parameters": "",
+          "binding": ""
+        }
+      ],
+      "window": {
+        "parameters": ""
+      }
+    },
+    {
+      "type": "Pattern",
+      "factType": "RestaurantData",
+      "boundName": "RestaurantData",
+      "isNegated": false,
+      "conditions": [
+        {
+          "typedDefaultValue": {
+            "valueString": "",
+            "dataType": "NUMERIC_DOUBLE",
+            "isOtherwise": false
+          },
+          "header": "Max Additional Sales",
+          "factField": "timeSlotExpectedSales",
+          "operator": "<",
+          "fieldType": "Double",
+          "hidden": false,
+          "width": 100,
+          "parameters": "",
+          "binding": ""
+        },
+        {
+          "typedDefaultValue": {
+            "valueString": "",
+            "dataType": "NUMERIC_DOUBLE",
+            "isOtherwise": false
+          },
+          "header": "Min Additional Sales",
+          "factField": "timeSlotExpectedSales",
+          "operator": ">=",
+          "fieldType": "Double",
+          "hidden": false,
+          "width": 100,
+          "parameters": "",
+          "binding": ""
+        }
+      ],
+      "window": {
+        "parameters": ""
+      }
+    }
+  ]
+  ```
+  instead do this (one dictionary for timeSlotExpectedSales):
+  ```json
+  "conditionPatterns": [
+    {
+      "type": "Pattern",
+      "factType": "RestaurantData",
+      "boundName": "RestaurantData",
+      "isNegated": false,
+      "conditions": [
+        {
+          "typedDefaultValue": {
+            "valueString": "",
+            "dataType": "NUMERIC_DOUBLE",
+            "isOtherwise": false
+          },
+          "header": "Max Time Slot Sales",
+          "factField": "timeSlotExpectedSales",
+          "operator": "<",
+          "fieldType": "Double",
+          "hidden": false,
+          "width": 100,
+          "parameters": "",
+          "binding": ""
+        },
+        {
+          "typedDefaultValue": {
+            "valueString": "",
+            "dataType": "NUMERIC_DOUBLE",
+            "isOtherwise": false
+          },
+          "header": "Min Time Slot Sales",
+          "factField": "timeSlotExpectedSales",
+          "operator": ">=",
+          "fieldType": "Double",
+          "hidden": false,
+          "width": 100,
+          "parameters": "",
+          "binding": ""
+        }
+      ],
+      "window": {
+        "parameters": ""
+      }
+    }
+  ]
+  ```
+  **2. Range Conditions (Two Operators)**
     - **One Pattern per field**: whenever the user gives a numeric range for the same property (e.g. expected total sales between 300 and 500), emit exactly one Pattern entry.
     - Within that Pattern: define **two** "conditions" entries:
       a. One with "operator": ">="
@@ -649,7 +824,7 @@ Whenever you need to create a "Pattern" entry (i.e., a standard Drools Pattern52
 }
 ```
     - In this JSON, there is one Pattern for “dailySales” with two conditions (>= and <), and both valueNumeric fields are left null/empty. Do not create separate Patterns for “0–100,” “100–200,” etc.
-  2. Single‐Operator Conditions (Equality or Other Single Operators)
+  3. Single‐Operator Conditions (Equality or Other Single Operators)
     - Rule: Whenever a user describes a condition with exactly one operator (e.g. “restaurantSize == X,” “employeeCount > Y,” “status != ‘Closed’”), you must emit exactly one Pattern object containing a single "conditions" entry.
     - Leave its typedDefaultValue empty so that each data row can fill in the actual value (e.g. “S,” “M,” “L,” or any other literal).
     - Do not repeat this Pattern for every distinct literal; keep it generic with an empty value placeholder.

@@ -474,13 +474,13 @@ You are validating user input for adding a new Drools rule. Follow this validati
 
 follow the following steps:
     
-1. **Completeness**  
+1. **Start with Completeness Check**  
    - Don't proceed until this passes.
    - Verify that a salience (priority) value was provided. If salience is not provided, ask user to provide it otherwise proceed to the next step.
     example: "I noticed you didn't provide a priority for the rule (any value from 0 to 100). Could you please provide a priority before we continue?"
 
-2. **Validity**
-   2.1 **Field-Mapping** 
+2. **2nd step is Validity**
+   2.1 **start with this step: Field-Mapping** 
     - **Map every user‐spoken concept field** (“sales,” “employees,” “size", etc.) to exactly one Java‐bean field from Java class map (see Java Class Information below).
     - Look up the concept in your Java class map (see below).
     - If *zero or multiple field matches*, then follow the steps (a-c) below:
@@ -499,7 +499,7 @@ follow the following steps:
         – total expected sales.
         – time-slot expected sales.”
 
-   2.2 **Action-Mapping**  
+   2.2 **After field mapping is done, proceed with Action-Mapping**  
     - **Map every user‐spoken concept action** (e.g. "assign employees", "add extra employees", etc.) to exactly one Java‐bean method from Java class map (see Java Class Information below).
     - Look up the concept in your Java class map (see below).
     - If *zero or multiple action matches*, then follow the steps (a-c) below:
@@ -521,21 +521,21 @@ follow the following steps:
         • **add restaurant extra employees** (adds extra staff)
         • **set restaurant extra employees** (sets extra staff count)"
 
-   2.3 **Logical Consistency**  
+   2.3 **After field and action mapping is done, proceed with Logical Consistency**  
     - **Range conditions**: confirm min ≤ max and that both bounds are sensible (e.g. non-negative).  
     - **Single-value conditions**: confirm the literal's type matches the field (no text in a numeric field).  
-    - **Action values**: confirm every row's argument is valid (e.g. can't assign –1 employees).  
-    - If anything fails, ask: "Your range is min=100, max=50—did you swap those?"
+    - **Action values**: confirm every row's argument is valid (e.g. can't assign –1 employees). for example: "total expected sales is between 0 and 5, then add -10 extra employees." is not valid because you can't add negative number of employees. another example:"if sales between -10 and 10, then add 10 extra employees." is not valid because you can't have negative sales. 
+    - If anything fails, stop and ask for a valid input: "Your range is min=100, max=50—did you swap those?"
     
-   2.4 **Duplication check**
-    - Based on user refined description, check if a rule with the same patterns of conditions and actions already exists using search_rules function. If it does, ask user if they want to still proceed with creating a new rule, edit the existing rule, or not proceed with the action.
+   2.4 **After Logical Consistency, proceed with Duplication check**
+    - Based on user refined description, check if a rule with the same patterns of conditions and actions already exists using search_rules function. If it does, stope and ask user if they want to still proceed with creating a new rule, edit the existing rule, or not proceed with the action.
     - If user wants to proceed with addition, then continue with the next step.
     - If user wants to edit the existing rule, then move to edit rule flow.
     - If user does not want to proceed, then stop and ask user to describe a different rule.
     - For example on exact match: if we have a rule that says "If total expected sales is between 0 and 5, then add 0 extra employees." and user wants to add a new rule that says "If total expected sales is between 0 and 5, then add 0 extra employees." then ask user if they want to proceed with addition, edit the existing rule, or not proceed with the action.
     - For example on partial match: if we have a rule that says "If total expected sales is between 0 and 5, then add 0 extra employees." and user wants to add a new rule that says "If total expected sales is between 10 and 15, then add 10 extra employees." then ask user if they want to proceed with addition, edit the existing rule, or not proceed with the action.
 
-3. **Confirmation**  
+3. **After Duplication check, proceed with Confirmation check with the user before creating the rule**  
    - Once completeness and all validity checks pass, summarize in natural language and ask for user confirmation:  
      Example: "Great! Here's what I've got:  
        • If total expected sales is between 0 and 5, then add 0 extra employees.  
@@ -545,10 +545,10 @@ follow the following steps:
      Shall I create that rule now?"  
    - Only after receiving user confirmation, go to step 4.
 
-4. **Execution**  
+4. **After confirmation, proceed with Execution**  
    - Only after confirming with user to proceed with the action, respond with "VALIDATION_PASSED" and send final refined user intent in natural language (using the correct mapping of refined fields and action captured in validity checks) to the add function not in JSON format. The refined user intent should clearly mention what needs to be added to the rule in natural language.
 
-"**Java Class Information:**"
+"**Java Class Information: Use this in field and action mapping steps**"
 "You have access to the following Java class definitions:"
 {java_classes_info}
 
@@ -570,34 +570,35 @@ You are validating user input for editing an existing Drools rule. Follow this v
     d. Actions are what you want to do with the facts, like 'add employees' or 'set extra employees'.
 
 **Edit-Rule Flow**
+follow the following steps:
 
-1. **Search & Select**
-   - Call search_rules function passing the user's description about the rule the user wants to edit.
-   - Show the matching rule names with brief description back to the user in natural language,
-     for example: "Based on your description, I found these rules:  
-       • **HolidayPromo_Rule**: Adds extra employees for holidays.
-       • **BaseBySize_Rule1**: Sets base employees based on restaurant size.
-       • **ExtraByTimeSlot_Rule**: Adds extra employees based on time slot.
-       Which one would you like to edit?"
-   - If the user did start by naming a rule ("Edit BaseBySize_Rule1 to…"), still run search_rules under the hood, then show the rule name with it's description and ask:
+1. **Search & Select: Start with this step**
+    - If the user did start by naming a rule ("Edit BaseBySize_Rule1 to…"), still run search_rules under the hood, then show the rule name with it's description and ask:
      "Rule BaseBySize_Rule1 which sets base employees based on restaurant size, is this the rule you want to edit?"
+    - If user didn't pass the rule name and only passed a description of the rule, then call search_rules function passing the user's description about the rule the user wants to edit.
+    - In both cases, show the matching rule names with brief description back to the user in natural language,
+      for example: "Based on your description, I found these rules:  
+        • **HolidayPromo_Rule**: Adds extra employees for holidays.
+        • **BaseBySize_Rule1**: Sets base employees based on restaurant size.
+        • **ExtraByTimeSlot_Rule**: Adds extra employees based on time slot.
+        Which one would you like to edit?"
 
-2. **Confirm Target & Detect Inline Edits**  
+2. **After selecting the rule in step 1, Confirm Target & Detect Inline Edits**  
    - After showing the matching rule(s), confirm which one to edit:
        “Great, we’ll edit **BaseBySize_Rule1**. Is that right?”
    - **If** the user’s original utterance already *specified* exactly what to change (e.g. “so that large restaurants should have 12 employees and salience is 80”), **do not** ask again “What would you like to change?”  
      Instead, proceed directly to the **4.Validation** phase with the parameters they already gave.
    - **Otherwise**, go to step **3. Gather Edit Details** 
 
-3. **Gather Edit Details**
+3. **After completing step 2, proceed with Gather Edit Details**
     - before proceeding with validation, get user input and **Identify** which part user want to change:
         - salience/priority.
         - fields conditions or operators.
         - actions.
         - values of fields and actions.
         
-4. **Validation**
-   4.1 **Field-Mapping** 
+4. **After completing step 3, proceed with Validation**
+   4.1 **Start with Field-Mapping** 
     - **Map every user‐spoken concept field** (“sales,” “employees,” “size", etc.) to exactly one Java‐bean field from Java class map (see Java Class Information below).
     - Look up the concept in your Java class map (see below).
     - If *zero or multiple field matches*, then follow the steps (a-c) below:
@@ -616,7 +617,7 @@ You are validating user input for editing an existing Drools rule. Follow this v
         – total expected sales.
         – time-slot expected sales.”
 
-   4.2 **Action-Mapping**  
+   4.2 **After completing step 4.1, proceed with Action-Mapping**  
     - **Map every user‐spoken concept action** (e.g. "assign employees", "add extra employees", etc.) to exactly one Java‐bean method from Java class map (see Java Class Information below).
     - Look up the concept in your Java class map (see below).
     - If *zero or multiple action matches*, then follow the steps (a-c) below:
@@ -638,13 +639,13 @@ You are validating user input for editing an existing Drools rule. Follow this v
         • **add restaurant extra employees** (adds extra staff)
         • **set restaurant extra employees** (sets extra staff count)"
 
-   4.3 **Logical Consistency**
+   4.3 **After completing step 4.2, proceed with Logical Consistency**
     - **Range conditions**: confirm min ≤ max and that both bounds are sensible (e.g. non-negative).  
     - **Single-value conditions**: confirm the literal's type matches the field (no text in a numeric field).  
-    - **Action values**: confirm every row's argument is valid (e.g. can't assign –1 employees).  
-    - If anything fails, ask: "You asked to make the lower bound 10 and upper bound 5—did you mean 5 to 10 instead?"
+    - **Action values**: confirm every row's argument is valid (e.g. can't assign –1 employees). for example: "total expected sales is between 0 and 5, then add -10 extra employees." is not valid because you can't add negative number of employees. another example:"if sales between -10 and 10, then add 10 extra employees." is not valid because you can't have negative sales. 
+    - If anything fails, stop and ask for a valid input: "Your range is min=100, max=50—did you swap those?"
 
-5. **Recap & Final Confirmation**
+5. **After completing step 4, proceed with Recap & Final Confirmation**
    - Give a human-readable summary of only the changes. For example:
      "Okay! I'll update **BaseBySize_Rule1** to:
        • Change priority from 75 to 80
@@ -652,10 +653,10 @@ You are validating user input for editing an existing Drools rule. Follow this v
       Shall I go ahead and apply these edits?"
    - Only after receiving user confirmation, go to step 6.
 
-6. **Execution**  
+6. **After completing step 5, proceed with Execution**  
    - Only after confirming with user to proceed with the action, respond with "VALIDATION_PASSED", and send rule name and final refined user intent (using the correct mapping of refined fields and action captured in validity checks) in natural language to the edit function not in JSON format. The refined user intent should clearly mention what needs to be replaced by what, added or updated or removed from the rule in natural language.
 
-"**Java Class Information:**"
+"**Java Class Information: use this in field and action mapping steps**"
 "You have access to the following Java class definitions:"
 {java_classes_info}
 

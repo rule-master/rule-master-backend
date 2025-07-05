@@ -26,7 +26,6 @@ pip install -r requirements.txt
 
 4. Create a `.env` file in the project root and add your env variables, for this you can copy paste the .env.example file:
 ```
-GROQ_API_KEY=
 OPENAI_API_KEY=
 QDRANT_API_KEY=
 QDRANT_URL=
@@ -45,7 +44,7 @@ JAVA_DIR=
 python server.py
 ```
 
-4. The Streamlit UI will automatically launch at `http://localhost:8501`
+3. The Streamlit UI will automatically launch at `http://localhost:8501`
    - You can access the user interface by opening your browser and navigating to:
    ```
    http://localhost:8501

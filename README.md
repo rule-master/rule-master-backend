@@ -45,8 +45,6 @@ JAVA_DIR=
 python server.py
 ```
 
-3. The FastAPI server will start at `http://localhost:8000`
-
 4. The Streamlit UI will automatically launch at `http://localhost:8501`
    - You can access the user interface by opening your browser and navigating to:
    ```

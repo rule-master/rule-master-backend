@@ -24,12 +24,9 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-4. Create a `.env` file in the project root and add your env variables:
+4. Create a `.env` file in the project root and add your env variables, for this you can copy paste the .env.example file:
 ```
 GROQ_API_KEY=
-DROOLS_URL=
-DROOLS_USER=
-DROOLS_PASS=
 OPENAI_API_KEY=
 QDRANT_API_KEY=
 QDRANT_URL=
@@ -57,49 +54,13 @@ python server.py
    ```
    - If you see any port conflicts, the server will attempt to resolve them automatically
 
-### Testing the API Directly
-
-You can test the API endpoint directly using the following:
-
-Endpoint: `http://localhost:8000/generate-rule`
-
-Request Type: `POST`
-
-Headers:
-```
-Content-Type: application/json
-```
-
-Body:
-```json
-{
-    "rule_text": "If restaurant size is small then assign 5 employees; if restaurant size is medium then assign 7 employees; if restaurant size is large then assign 10 employees.",
-    "output_file": "restaurant_staffing.dmn"
-}
-```
-
-Full curl command:
-```bash
-curl -X POST "http://localhost:8000/generate-rule" \
-     -H "Content-Type: application/json" \
-     -d '{
-    "rule_text": "If restaurant size is small then assign 5 employees; if restaurant size is medium then assign 7 employees; if restaurant size is large then assign 10 employees.",
-    "output_file": "restaurant_staffing.dmn"
-}'
-```
-
 ## Accessing the Application
 
 When you run `server.py`, two services will start:
 
-1. **FastAPI Backend Server**
-   - URL: `http://localhost:8000`
-   - Handles the API endpoints
-   - Provides the rule generation service
-
-2. **Streamlit User Interface**
+1. **Streamlit User Interface**
    - URL: `http://localhost:8501`
    - Provides a user-friendly web interface
-   - Automatically launches when you start the server
-   - Use this for interactive rule creation and testing
+   - Use this for interactive UI yo test creating, editing, searching and deleting rules
    
+### You can also try out the live environment on https://capstone.burhan.ai
